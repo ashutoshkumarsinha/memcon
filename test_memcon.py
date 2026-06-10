@@ -100,6 +100,16 @@ def test_workspace_compression_drops_excess_files(tmp_path):
 # 5. REST CLIENT payload INTEGRATION TESTING
 # =====================================================================
 
+def test_config_loads_from_toml():
+    """Ensures config.toml is parsed and exposes expected defaults."""
+    cfg = memcon.load_config(memcon._bundle_dir() / "config.toml")
+    assert cfg.version == "1.0"
+    assert cfg.default_model == "llama3"
+    assert cfg.ollama_host == "http://localhost:11434"
+    assert cfg.default_budget_tokens == 4000
+    assert cfg.scan_max_depth == 3
+
+
 def test_dynamic_budget_mapping():
     """Ensures context token limits automatically scale based on the target model size."""
     assert memcon.get_dynamic_budget("llama3:8b") == 4000

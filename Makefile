@@ -5,7 +5,7 @@ PYTHON   ?= python3
 PYTEST   ?= pytest
 PYINSTALLER ?= pyinstaller
 
-VERSION  := 1.0
+VERSION  := $(shell python3 -c 'import tomllib; print(tomllib.load(open("config.toml","rb"))["app"]["version"])')
 BINARY   := dist/memcon
 RELEASE  := releases/memcon-v$(VERSION)-host.tar.gz
 

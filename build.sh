@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="1.0"
+VERSION="$(python3 -c 'import tomllib; print(tomllib.load(open("config.toml","rb"))["app"]["version"])')"
 RELEASE_DIR="releases"
 HOST_ARCHIVE="memcon-v${VERSION}-host.tar.gz"
 WIN_ARCHIVE="memcon-v${VERSION}-win64.zip"
@@ -16,7 +16,7 @@ echo "✅ Tests passed successfully! Moving to the compilation phase."
 mkdir -p "${RELEASE_DIR}" dist build
 
 echo "📦 Building native host binary..."
-pyinstaller --onefile --name memcon memcon.py
+pyinstaller --onefile --name memcon --add-data "config.toml:." memcon.py
 
 echo "📦 Archiving host release..."
 tar -czf "${RELEASE_DIR}/${HOST_ARCHIVE}" -C dist memcon

@@ -10,76 +10,148 @@ import json
 import os
 import re
 import sys
+import tomllib
 import urllib.error
 import urllib.request
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
-VERSION = "1.0"
-OLLAMA_URL = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 
-CONFIG_DIR = Path.home() / ".config" / "memcon"
-GLOBAL_CONFIG_PATH = CONFIG_DIR / "global.json"
-HISTORY_PATH = CONFIG_DIR / "history.json"
+@dataclass(frozen=True)
+class AppConfig:
+    version: str
+    default_model: str
+    config_dir: Path
+    global_config_path: Path
+    history_path: Path
+    project_context_file: str
+    ignore_file: str
+    ollama_host: str
+    ollama_chat_endpoint: str
+    ollama_timeout_seconds: int
+    ollama_stream: bool
+    history_max_entries: int
+    history_display_limit: int
+    prompt_preview_length: int
+    plain_text_divisor: float
+    dense_code_divisor: float
+    symbol_density_threshold: float
+    code_symbols_pattern: str
+    scan_max_depth: int
+    invariant_ignore_dirs: frozenset[str]
+    invariant_ignore_files: frozenset[str]
+    allowed_extensions: frozenset[str]
+    budget_rules: tuple[tuple[tuple[str, ...], int], ...]
+    default_budget_tokens: int
+    global_defaults: dict[str, Any]
+    code_symbols: re.Pattern[str] = field(repr=False, compare=False)
 
-DEFAULT_GLOBAL_CONFIG = {
-    "persona": "You are a helpful local coding assistant.",
-    "style": "Be concise and precise.",
-    "defaults": {"model": "llama3"},
-}
 
-INVARIANT_IGNORE_DIRS = {
-    ".git",
-    "node_modules",
-    "__pycache__",
-    ".venv",
-    "venv",
-    "dist",
-    "build",
-}
+def _bundle_dir() -> Path:
+    if getattr(sys, "frozen", False):
+        return Path(sys._MEIPASS)  # type: ignore[attr-defined]
+    return Path(__file__).resolve().parent
 
-INVARIANT_IGNORE_FILES = {".memcon", ".memconignore", ".DS_Store"}
 
-ALLOWED_EXTENSIONS = {
-    ".py",
-    ".js",
-    ".ts",
-    ".jsx",
-    ".tsx",
-    ".go",
-    ".rs",
-    ".html",
-    ".css",
-    ".json",
-    ".md",
-    ".txt",
-    ".yml",
-    ".yaml",
-}
+def _resolve_config_path() -> Path:
+    if env_path := os.environ.get("MEMCON_CONFIG_FILE"):
+        return Path(env_path).expanduser()
+    user_path = Path.home() / ".config" / "memcon" / "config.toml"
+    bundled_path = _bundle_dir() / "config.toml"
+    if user_path.is_file():
+        return user_path
+    return bundled_path
 
-CODE_SYMBOLS = re.compile(r"[\{\}\[\]]|=>")
+
+def _load_toml(path: Path) -> dict[str, Any]:
+    with path.open("rb") as handle:
+        return tomllib.load(handle)
+
+
+def load_config(config_path: Path | None = None) -> AppConfig:
+    path = config_path or _resolve_config_path()
+    raw = _load_toml(path)
+
+    app = raw["app"]
+    paths = raw["paths"]
+    ollama = raw["ollama"]
+    history = raw["history"]
+    tokens = raw["tokens"]
+    workspace = raw["workspace"]
+    budgets = raw["budgets"]
+    global_defaults = raw["global_defaults"]
+
+    config_dir = Path(
+        os.environ.get(
+            "MEMCON_CONFIG_DIR",
+            str(Path.home() / paths["config_subdir"]),
+        )
+    ).expanduser()
+
+    budget_rules = tuple(
+        (tuple(rule["patterns"]), int(rule["tokens"]))
+        for rule in budgets.get("rules", [])
+    )
+
+    return AppConfig(
+        version=str(app["version"]),
+        default_model=str(app["default_model"]),
+        config_dir=config_dir,
+        global_config_path=config_dir / paths["global_config_file"],
+        history_path=config_dir / paths["history_file"],
+        project_context_file=str(paths["project_context_file"]),
+        ignore_file=str(paths["ignore_file"]),
+        ollama_host=os.environ.get("OLLAMA_HOST", str(ollama["host"])).rstrip("/"),
+        ollama_chat_endpoint=str(ollama["chat_endpoint"]),
+        ollama_timeout_seconds=int(ollama["timeout_seconds"]),
+        ollama_stream=bool(ollama["stream"]),
+        history_max_entries=int(history["max_entries"]),
+        history_display_limit=int(history["display_limit"]),
+        prompt_preview_length=int(history["prompt_preview_length"]),
+        plain_text_divisor=float(tokens["plain_text_divisor"]),
+        dense_code_divisor=float(tokens["dense_code_divisor"]),
+        symbol_density_threshold=float(tokens["symbol_density_threshold"]),
+        code_symbols_pattern=str(tokens["code_symbols_pattern"]),
+        scan_max_depth=int(workspace["scan_max_depth"]),
+        invariant_ignore_dirs=frozenset(workspace["invariant_ignore_dirs"]),
+        invariant_ignore_files=frozenset(workspace["invariant_ignore_files"]),
+        allowed_extensions=frozenset(workspace["allowed_extensions"]),
+        budget_rules=budget_rules,
+        default_budget_tokens=int(budgets["default_tokens"]),
+        global_defaults={
+            "persona": str(global_defaults["persona"]),
+            "style": str(global_defaults["style"]),
+            "defaults": {"model": str(global_defaults["model"])},
+        },
+        code_symbols=re.compile(str(tokens["code_symbols_pattern"])),
+    )
+
+
+CFG = load_config()
 
 
 def ensure_config_dir() -> None:
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    CFG.config_dir.mkdir(parents=True, exist_ok=True)
 
 
 def load_global_config() -> dict:
     ensure_config_dir()
-    if not GLOBAL_CONFIG_PATH.exists():
-        GLOBAL_CONFIG_PATH.write_text(
-            json.dumps(DEFAULT_GLOBAL_CONFIG, indent=2) + "\n"
+    if not CFG.global_config_path.exists():
+        CFG.global_config_path.write_text(
+            json.dumps(CFG.global_defaults, indent=2) + "\n"
         )
-        return dict(DEFAULT_GLOBAL_CONFIG)
-    return json.loads(GLOBAL_CONFIG_PATH.read_text())
+        return dict(CFG.global_defaults)
+    return json.loads(CFG.global_config_path.read_text())
 
 
 def find_memcon_files(start: Path | None = None) -> list[Path]:
-    """Walk upward from start (or cwd) to /, collecting .memcon files."""
+    """Walk upward from start (or cwd) to /, collecting project context files."""
     current = (start or Path.cwd()).resolve()
     found: list[Path] = []
     while True:
-        candidate = current / ".memcon"
+        candidate = current / CFG.project_context_file
         if candidate.is_file():
             found.append(candidate)
         if current == current.parent:
@@ -96,7 +168,7 @@ def read_memcon_context(paths: list[Path]) -> str:
 
 
 def read_memconignore(root: Path) -> list[str]:
-    ignore_path = root / ".memconignore"
+    ignore_path = root / CFG.ignore_file
     if not ignore_path.is_file():
         return []
     rules: list[str] = []
@@ -117,10 +189,10 @@ def is_ignored(file_path: Path, root_dir: Path, ignore_rules: list[str]) -> bool
     parts = rel.parts
 
     for part in parts:
-        if part in INVARIANT_IGNORE_DIRS:
+        if part in CFG.invariant_ignore_dirs:
             return True
 
-    if rel.name in INVARIANT_IGNORE_FILES:
+    if rel.name in CFG.invariant_ignore_files:
         return True
 
     for rule in ignore_rules:
@@ -133,7 +205,7 @@ def is_ignored(file_path: Path, root_dir: Path, ignore_rules: list[str]) -> bool
         elif fnmatch.fnmatch(rel.name, rule) or fnmatch.fnmatch(rel_posix, rule):
             return True
 
-    if file_path.suffix.lower() not in ALLOWED_EXTENSIONS:
+    if file_path.suffix.lower() not in CFG.allowed_extensions:
         return True
 
     return False
@@ -142,21 +214,22 @@ def is_ignored(file_path: Path, root_dir: Path, ignore_rules: list[str]) -> bool
 def calculate_precise_tokens(text: str) -> int:
     if not text:
         return 0
-    symbol_hits = len(CODE_SYMBOLS.findall(text))
+    symbol_hits = len(CFG.code_symbols.findall(text))
     density = symbol_hits / max(len(text), 1)
-    divisor = 3.4 if density >= 0.02 else 3.9
+    divisor = (
+        CFG.dense_code_divisor
+        if density >= CFG.symbol_density_threshold
+        else CFG.plain_text_divisor
+    )
     return int(len(text) // divisor)
 
 
 def get_dynamic_budget(model_name: str) -> int:
     name = model_name.lower()
-    if "70b" in name:
-        return 16000
-    if "32b" in name or "14b" in name:
-        return 8000
-    if any(tag in name for tag in ("8b", "llama3", "phi3")):
-        return 4000
-    return 4000
+    for patterns, tokens in CFG.budget_rules:
+        if any(pattern in name for pattern in patterns):
+            return tokens
+    return CFG.default_budget_tokens
 
 
 def check_syntax_validity(file_path: Path) -> tuple[bool, str]:
@@ -173,10 +246,11 @@ def check_syntax_validity(file_path: Path) -> tuple[bool, str]:
 def scan_workspace(
     root_dir: Path,
     ignore_rules: list[str],
-    max_depth: int = 3,
+    max_depth: int | None = None,
 ) -> dict[str, str]:
     files: dict[str, str] = {}
     root_dir = root_dir.resolve()
+    depth_limit = CFG.scan_max_depth if max_depth is None else max_depth
 
     for dirpath, dirnames, filenames in os.walk(root_dir):
         current = Path(dirpath)
@@ -184,7 +258,7 @@ def scan_workspace(
             depth = len(current.relative_to(root_dir).parts)
         except ValueError:
             continue
-        if depth > max_depth:
+        if depth > depth_limit:
             dirnames.clear()
             continue
 
@@ -303,16 +377,18 @@ def apply_budget_compression(
 
 
 def stream_ollama_chat(model: str, messages: list[dict]) -> str:
-    payload = json.dumps({"model": model, "messages": messages, "stream": True}).encode()
+    payload = json.dumps(
+        {"model": model, "messages": messages, "stream": CFG.ollama_stream}
+    ).encode()
     req = urllib.request.Request(
-        f"{OLLAMA_URL}/api/chat",
+        f"{CFG.ollama_host}{CFG.ollama_chat_endpoint}",
         data=payload,
         headers={"Content-Type": "application/json"},
         method="POST",
     )
     chunks: list[str] = []
     try:
-        with urllib.request.urlopen(req, timeout=600) as resp:
+        with urllib.request.urlopen(req, timeout=CFG.ollama_timeout_seconds) as resp:
             for raw_line in resp:
                 line = raw_line.decode().strip()
                 if not line:
@@ -341,8 +417,8 @@ def append_history(
 ) -> None:
     ensure_config_dir()
     history: list[dict] = []
-    if HISTORY_PATH.exists():
-        history = json.loads(HISTORY_PATH.read_text())
+    if CFG.history_path.exists():
+        history = json.loads(CFG.history_path.read_text())
 
     entry = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -354,20 +430,21 @@ def append_history(
         "response": response,
     }
     history.append(entry)
-    history = history[-50:]
-    HISTORY_PATH.write_text(json.dumps(history, indent=2) + "\n")
+    history = history[-CFG.history_max_entries :]
+    CFG.history_path.write_text(json.dumps(history, indent=2) + "\n")
 
 
-def show_history(limit: int = 10) -> None:
-    if not HISTORY_PATH.exists():
+def show_history(limit: int | None = None) -> None:
+    display_limit = CFG.history_display_limit if limit is None else limit
+    if not CFG.history_path.exists():
         print("No session history found.")
         return
-    history = json.loads(HISTORY_PATH.read_text())
-    for idx, entry in enumerate(history[-limit:], start=1):
+    history = json.loads(CFG.history_path.read_text())
+    for idx, entry in enumerate(history[-display_limit:], start=1):
         ts = entry.get("timestamp", "?")
         model = entry.get("model", "?")
         cwd = entry.get("cwd", "?")
-        prompt_preview = (entry.get("user_input") or "")[:80]
+        prompt_preview = (entry.get("user_input") or "")[: CFG.prompt_preview_length]
         print(f"{idx}. [{ts}] model={model} cwd={cwd}")
         print(f"   prompt: {prompt_preview!r}")
         print()
@@ -391,7 +468,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         description="Local ambient memory manager and Ollama execution proxy.",
     )
     parser.add_argument("prompt_or_file", nargs="?", default=None)
-    parser.add_argument("-m", "--model", default="llama3")
+    parser.add_argument("-m", "--model", default=CFG.default_model)
     parser.add_argument("-s", "--show-context", action="store_true")
     parser.add_argument("-hi", "--history", action="store_true")
     parser.add_argument("-sc", "--scan", action="store_true")
@@ -403,7 +480,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
 
     if args.version:
-        print(f"memcon v{VERSION}")
+        print(f"memcon v{CFG.version}")
         return 0
 
     if args.history:

@@ -1,0 +1,68 @@
+[app]
+version = "1.0"
+default_model = "llama3"
+description = "Local ambient memory manager and Ollama execution proxy."
+
+[paths]
+# Resolved under the user home directory unless MEMCON_CONFIG_DIR is set.
+config_subdir = ".config/memcon"
+global_config_file = "global.json"
+history_file = "history.json"
+project_context_file = ".memcon"
+ignore_file = ".memconignore"
+
+[ollama]
+# Overridden by the OLLAMA_HOST environment variable when set.
+host = "http://localhost:11434"
+chat_endpoint = "/api/chat"
+timeout_seconds = 600
+stream = true
+
+[history]
+max_entries = 50
+display_limit = 10
+prompt_preview_length = 80
+
+[tokens]
+plain_text_divisor = 3.9
+dense_code_divisor = 3.4
+symbol_density_threshold = 0.02
+code_symbols_pattern = """[\\{\\}\\[\\]]|=>"""
+
+[workspace]
+scan_max_depth = 3
+invariant_ignore_dirs = [
+  ".git",
+  "node_modules",
+  "__pycache__",
+  ".venv",
+  "venv",
+  "dist",
+  "build",
+]
+invariant_ignore_files = [".memcon", ".memconignore", ".DS_Store"]
+allowed_extensions = [
+  ".py", ".js", ".ts", ".jsx", ".tsx",
+  ".go", ".rs", ".html", ".css",
+  ".json", ".md", ".txt", ".yml", ".yaml",
+]
+
+[[budgets.rules]]
+patterns = ["70b"]
+tokens = 16000
+
+[[budgets.rules]]
+patterns = ["32b", "14b"]
+tokens = 8000
+
+[[budgets.rules]]
+patterns = ["8b", "llama3", "phi3"]
+tokens = 4000
+
+[budgets]
+default_tokens = 4000
+
+[global_defaults]
+persona = "You are a helpful local coding assistant."
+style = "Be concise and precise."
+model = "llama3"

@@ -74,6 +74,18 @@ With no positional argument, memcon reads a multiline prompt from stdin until `C
 
 ## Configuration
 
+### Application config (`config.toml`)
+
+Runtime constants and defaults live in `config.toml` at the project root. Override paths:
+
+| Variable | Effect |
+|----------|--------|
+| `OLLAMA_HOST` | Ollama API base URL |
+| `MEMCON_CONFIG_DIR` | User config directory (default: `~/.config/memcon`) |
+| `MEMCON_CONFIG_FILE` | Path to an alternate `config.toml` |
+
+A user-level override at `~/.config/memcon/config.toml` takes precedence over the bundled file when present.
+
 ### Global config
 
 Created automatically on first run at `~/.config/memcon/global.json`:
@@ -143,6 +155,7 @@ releases/
 
 ```text
 memcon/
+├── config.toml        # application constants and defaults
 ├── memcon.py          # CLI application
 ├── test_memcon.py     # pytest suite
 ├── Makefile           # common dev/build targets
