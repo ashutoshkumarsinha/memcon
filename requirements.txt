@@ -1,10 +1,12 @@
-# Managed via devbox. Listed here for reference.
+# Managed via devbox (see devbox.json). Listed here for reference only.
 #
-# Python (python312Packages.*):
+# Python packages (python312Packages.* in devbox):
 #   pytest, pytest-mock, pyinstaller
 #
-# System tools:
+# System tools (devbox packages):
 #   gnupg, podman, gnumake, zip, kiro-cli
+#
+# Runtime (memcon.py + providers/): Python 3.12 stdlib only — no pip deps.
 
 pytest>=8.0
 pytest-mock>=3.12

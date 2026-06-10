@@ -19,8 +19,26 @@
       "build": [
         "./build.sh"
       ],
+      "version": [
+        "python memcon.py --version"
+      ],
+      "help": [
+        "make help"
+      ],
       "show-context": [
         "python memcon.py --show-context"
+      ],
+      "run-ollama": [
+        "python memcon.py --provider ollama"
+      ],
+      "run-anthropic": [
+        "python memcon.py --provider anthropic"
+      ],
+      "run-openai": [
+        "python memcon.py --provider openai"
+      ],
+      "run-kiro": [
+        "python memcon.py --provider kiro"
       ]
     }
   }

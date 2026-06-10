@@ -46,10 +46,13 @@ releases/
 |------|---------|
 | [devbox](https://www.jetify.com/devbox) | Reproducible build environment |
 | Python 3.12 | Source runtime (provided by devbox) |
-| pytest | Pre-flight test gate |
+| pytest, pytest-mock | Pre-flight test gate |
 | PyInstaller | Binary compilation |
 | Podman (optional) | Windows cross-compile via `cdrx/pyinstaller-windows` |
 | GnuPG (optional) | Manifest signing |
+| gnumake | `Makefile` targets (`make test`, `make build`, …) |
+| zip | Windows release archive |
+| kiro-cli (optional) | Kiro provider development and testing |
 
 ### Target machine (end user)
 
@@ -237,9 +240,25 @@ export KIRO_API_KEY=...      # headless mode (set [kiro].mode = "headless")
 
 ## Environment Configuration
 
+### Provider selection (`config.toml`)
+
+Set the default backend with flags in `[provider]` (user override: `~/.config/memcon/config.toml`):
+
+```toml
+[provider]
+use_ollama = true
+use_paid = false
+use_kiro = false
+paid_provider = "anthropic"  # anthropic | openai when use_paid = true
+```
+
+Only one of `use_ollama`, `use_paid`, or `use_kiro` may be `true`. CLI `--provider` and `MEMCON_PROVIDER` override these flags.
+
+### Environment variables
+
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MEMCON_PROVIDER` | from `config.toml` | Active backend |
+| `MEMCON_PROVIDER` | from `config.toml` flags | Active backend |
 | `MEMCON_CONFIG_FILE` | bundled / user path | Alternate `config.toml` |
 | `MEMCON_CONFIG_DIR` | `~/.config/memcon` | User state directory |
 | `OLLAMA_HOST` | `http://localhost:11434` | Ollama API base URL |

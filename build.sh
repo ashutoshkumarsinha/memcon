@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Build pipeline: pytest → PyInstaller (bundles config.toml + providers/) → archives → checksums.
 set -euo pipefail
 
 VERSION="$(python3 -c 'import tomllib; print(tomllib.load(open("config.toml","rb"))["app"]["version"])')"

@@ -69,7 +69,7 @@ devbox shell
 # Run a prompt
 python memcon.py "Explain this module" --scan
 
-# Preview assembled context without calling Ollama
+# Preview assembled context without calling a provider
 python memcon.py "Refactor auth" --scan --show-context
 
 # View recent sessions
@@ -166,13 +166,14 @@ Scanned file types: `.py`, `.js`, `.ts`, `.jsx`, `.tsx`, `.go`, `.rs`, `.html`, 
 Dependencies are managed through devbox (Python 3.12, pytest, pyinstaller, gnupg, podman, gnumake, zip, kiro-cli):
 
 ```bash
-make help                              # list available targets
-make shell                             # enter devbox environment
-make test                              # run pytest suite
-make build                             # run build pipeline
-make run ARGS='"Explain this" --scan'  # run with default provider
+make help                                 # list targets and variables
+make shell                                # enter devbox environment
+make test                                 # run pytest suite
+make build                                # run build pipeline
+make run ARGS='"Explain this" --scan'      # uses config.toml provider flags
+make run-anthropic ARGS='"Write tests" --scan'
 make run-kiro ARGS='"Refactor auth" --scan'
-make show-context ARGS='"prompt" --scan'  # preview without API call
+make show-context ARGS='"prompt" --scan'   # preview without API call
 ```
 
 Or use devbox directly:
@@ -181,6 +182,8 @@ Or use devbox directly:
 devbox shell
 devbox run test
 devbox run build
+make run-kiro ARGS='"Refactor auth" --scan'
+devbox run help
 ```
 
 Or run tests directly:

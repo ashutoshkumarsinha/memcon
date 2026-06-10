@@ -71,7 +71,34 @@ On first run, MemCon creates `~/.config/memcon/global.json` with default persona
 
 ## Choosing a Provider
 
-Use `-p` / `--provider` or set `MEMCON_PROVIDER` / `config.toml`:
+### Default via `config.toml` (recommended)
+
+Set **exactly one** flag to `true` in `[provider]` (or copy to `~/.config/memcon/config.toml`):
+
+```toml
+[provider]
+use_ollama = true
+use_paid = false
+use_kiro = false
+paid_provider = "anthropic"  # anthropic | openai when use_paid = true
+```
+
+| Goal | Config |
+|------|--------|
+| Local Ollama | `use_ollama = true` |
+| Anthropic API | `use_paid = true`, `paid_provider = "anthropic"` |
+| OpenAI API | `use_paid = true`, `paid_provider = "openai"` |
+| Kiro CLI | `use_kiro = true` |
+
+Then run without `-p`:
+
+```bash
+memcon "Explain decorators" --scan
+```
+
+**Resolution order:** `--provider` → `MEMCON_PROVIDER` → config flags → legacy `[provider].name`.
+
+### One-off overrides (CLI or env)
 
 ```bash
 # Local Ollama
@@ -146,13 +173,18 @@ Type or paste your prompt, then press `Ctrl+D` (macOS/Linux) or `Ctrl+Z` then En
 | `--history` | `-hi` | Show last 10 sessions |
 | `--version` | `-v` | Print version |
 
-### Makefile shortcuts
+### Makefile and devbox shortcuts
 
 ```bash
-make run ARGS='"Explain this module" --scan'
+make run ARGS='"Explain this module" --scan'          # uses config.toml flags
+make run-paid ARGS='"Summarize repo" --scan'          # when use_paid = true in config
 make run-anthropic ARGS='"Write tests" --scan' MODEL=claude-sonnet-4-20250514
 make run-kiro ARGS='"Refactor auth" --scan'
 make show-context ARGS='"prompt" --scan'
+
+devbox run test
+devbox run build
+devbox run run-kiro    # then pass prompt via stdin or ARGS with make
 ```
 
 ---
@@ -359,5 +391,6 @@ memcon "Difference between asyncio.gather and TaskGroup?" --provider ollama
 | `OpenAI request failed` | Check API key and model name |
 | `kiro-cli not found` | Install Kiro or set `KIRO_CLI_PATH` |
 | `Missing API key` | Set the provider's key env var |
+| `Multiple providers enabled` | Set only one of `use_ollama`, `use_paid`, `use_kiro` to true |
 
 For deployment and installation, see [DEPLOYMENT.md](DEPLOYMENT.md).

@@ -131,7 +131,8 @@ See [Section 14](#14-out-of-scope).
 | ID | Requirement |
 |----|-------------|
 | FR-4.1 | Support providers: `ollama`, `anthropic`, `openai`, `kiro` |
-| FR-4.2 | Select provider via `--provider`, `MEMCON_PROVIDER`, or `config.toml` |
+| FR-4.2 | Select provider via `--provider`, `MEMCON_PROVIDER`, or `config.toml` flags (`use_ollama`, `use_paid`, `use_kiro`, `paid_provider`); exactly one flag may be enabled |
+| FR-4.2a | Provider resolution order: CLI `--provider` → `MEMCON_PROVIDER` → config flags → legacy `[provider].name` |
 | FR-4.3 | Stream response tokens to stdout in real time |
 | FR-4.4 | **Ollama:** POST to `{OLLAMA_HOST}/api/chat` with `stream: true` |
 | FR-4.5 | **Anthropic:** POST to `/v1/messages` with SSE; system prompt in top-level `system` field |
@@ -213,7 +214,17 @@ Bundled with the binary; user override at `~/.config/memcon/config.toml`.
 | Section | Purpose |
 |---------|---------|
 | `[app]` | Version, description |
-| `[provider]` | Provider flags (`use_ollama`, `use_paid`, `use_kiro`, `paid_provider`) |
+| `[provider]` | Provider flags (`use_ollama`, `use_paid`, `use_kiro`, `paid_provider`, legacy `name`) |
+
+Example:
+
+```toml
+[provider]
+use_ollama = true
+use_paid = false
+use_kiro = false
+paid_provider = "anthropic"
+```
 | `[ollama]` | Ollama host, endpoint, default model |
 | `[anthropic]` | Anthropic API settings |
 | `[openai]` | OpenAI API settings |
@@ -223,7 +234,7 @@ Bundled with the binary; user override at `~/.config/memcon/config.toml`.
 | `[[budgets.rules]]` | Model pattern → token budget |
 | `[history]` | History retention limits |
 
-Environment overrides: `MEMCON_PROVIDER`, `OLLAMA_HOST`, `OPENAI_BASE_URL`, `MEMCON_CONFIG_FILE`, `MEMCON_CONFIG_DIR`.
+Environment overrides: `MEMCON_PROVIDER`, `OLLAMA_HOST`, `OPENAI_BASE_URL`, `KIRO_CLI_PATH`, `KIRO_API_KEY`, `MEMCON_CONFIG_FILE`, `MEMCON_CONFIG_DIR`.
 
 ### 8.2 Global config (`~/.config/memcon/global.json`)
 
@@ -379,6 +390,10 @@ Test suite: `test_memcon.py` (pytest)
 | `test_workspace_compression_drops_excess_files` | Budget compression drops files |
 | `test_dynamic_budget_mapping` | Model name → budget mapping |
 | `test_config_loads_from_toml` | `config.toml` parsing |
+| `test_provider_flags_paid_anthropic` | `use_paid` + `paid_provider` resolution |
+| `test_provider_flags_kiro` | `use_kiro` flag resolution |
+| `test_provider_flags_reject_multiple_enabled` | Rejects multiple enabled provider flags |
+| `test_provider_legacy_name_fallback` | Legacy `[provider].name` fallback |
 | `test_provider_config_anthropic` | Anthropic provider config |
 | `test_provider_config_openai` | OpenAI provider config |
 | `test_provider_config_kiro` | Kiro provider config |

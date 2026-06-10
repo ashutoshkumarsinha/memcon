@@ -78,7 +78,7 @@ MemCon is a **stateless, single-process CLI middleware** that transforms a shell
 ```text
 memcon.py
 ├── CLI Router           parse_args(), main()
-├── Config Loader        load_config(), load_global_config(), find_memcon_files()
+├── Config Loader        load_config(), _resolve_provider_from_config(), find_memcon_files()
 ├── Context Assembler    build_system_prompt(), read_memcon_context()
 ├── Workspace Engine     scan_workspace(), is_ignored(), check_syntax_validity()
 ├── Token Engine         calculate_precise_tokens(), get_dynamic_budget()
@@ -101,7 +101,7 @@ providers/
 | Component | Responsibility |
 |-----------|----------------|
 | **CLI Router** | Parse flags, dispatch to history/version/show-context or main pipeline |
-| **Config Loader** | Load `config.toml`, bootstrap `global.json`, discover `.memcon` hierarchy |
+| **Config Loader** | Load `config.toml`, resolve provider flags (`use_ollama` / `use_paid` / `use_kiro`), bootstrap `global.json`, discover `.memcon` hierarchy |
 | **Context Assembler** | Merge global persona + project rules into system prompt |
 | **Workspace Engine** | Walk directory tree, filter, validate Python syntax |
 | **Token Engine** | Heuristic token counting and model budget lookup from `config.toml` |
@@ -178,7 +178,22 @@ Terminal Input
 
 ## 5. Module Design
 
-### 5.1 CLI Router
+### 5.1 Provider resolution
+
+**Function:** `_resolve_provider_from_config(raw)`
+
+```text
+CLI --provider or MEMCON_PROVIDER set?
+  yes → use that value
+  no  → read [provider] flags:
+        use_ollama / use_paid / use_kiro (exactly one true)
+        use_paid → paid_provider (anthropic | openai)
+        none true → legacy [provider].name
+```
+
+Enabling more than one flag raises `ValueError` before any network or subprocess call.
+
+### 5.2 CLI Router
 
 **Entry:** `main(argv)`
 
@@ -196,7 +211,7 @@ Terminal Input
 2. Positional argument as text → use directly
 3. No argument → read stdin until EOF
 
-### 5.2 Workspace Engine
+### 5.3 Workspace Engine
 
 **Traversal:** `os.walk` with depth limit (3 levels from root).
 
@@ -209,7 +224,7 @@ path → invariant dir check → invariant file check → .memconignore rules
 
 **Directory pruning:** Ignored directories are removed from `dirnames` during walk to avoid descending into `node_modules/`, etc.
 
-### 5.3 Token Engine
+### 5.4 Token Engine
 
 Two-tier divisor model:
 
@@ -218,7 +233,7 @@ Two-tier divisor model:
 
 Budget lookup is substring-based on model name (case-insensitive).
 
-### 5.4 Provider clients
+### 5.5 Provider clients
 
 | Provider | Transport | Streaming |
 |----------|-----------|-----------|
@@ -340,9 +355,9 @@ If `baseline > max_budget`, the run aborts. User input is never truncated.
 
 ```text
 Developer Machine
-├── devbox (python, pytest, pyinstaller, gnupg, podman)
+├── devbox (python, pytest, pyinstaller, gnupg, podman, gnumake, zip, kiro-cli)
 ├── memcon.py + providers/ + config.toml
-├── Makefile / build.sh
+├── Makefile / build.sh / devbox.json scripts
 └── test_memcon.py
 ```
 
