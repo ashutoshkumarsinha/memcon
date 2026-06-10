@@ -26,7 +26,7 @@
 
 ## 1. Design Overview
 
-MemCon is a **stateless, single-process CLI middleware** that transforms a shell invocation into a structured Ollama chat request. It does not maintain conversational state between runs; instead, it reconstructs context deterministically from filesystem configuration on every invocation.
+MemCon is a **stateless, single-process CLI middleware** that transforms a shell invocation into a structured LLM request routed through a pluggable provider layer. It does not maintain conversational state between runs; instead, it reconstructs context deterministically from filesystem configuration on every invocation.
 
 ```text
 ┌──────────────────────────────────────────────────────────────────┐
@@ -41,9 +41,14 @@ MemCon is a **stateless, single-process CLI middleware** that transforms a shell
 │                  └─────────────────┘     └─────────┬──────────┘  │
 │                                                     │              │
 │                           ┌─────────────────────────▼──────────┐  │
-│                           │ Ollama Client (HTTP stream)       │  │
-│                           └─────────────────────────┬──────────┘  │
-│                                                     │              │
+│                           │ Provider Router (stream_chat)     │  │
+│                           └─────────┬────────────────────────┘  │
+│         ┌──────────┬───────────────┼───────────────┬──────────┐  │
+│         ▼          ▼               ▼               ▼          │  │
+│    ┌────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────┐   │  │
+│    │ Ollama │ │Anthropic │ │  OpenAI  │ │  Kiro CLI    │   │  │
+│    │ HTTP   │ │ REST/SSE │ │ REST/SSE │ │ ACP/headless │   │  │
+│    └────────┘ └──────────┘ └──────────┘ └──────────────┘   │  │
 │                           ┌─────────────────────────▼──────────┐  │
 │                           │ Telemetry Writer                  │  │
 │                           └──────────────────────────────────┘  │
@@ -61,7 +66,8 @@ MemCon is a **stateless, single-process CLI middleware** that transforms a shell
 | **Fail safe on budget** | Abort if baseline exceeds budget; never silently truncate user input |
 | **Progressive inclusion** | Workspace files added in sorted order until budget fills |
 | **Zero runtime deps** | Stdlib-only source enables small PyInstaller binary |
-| **Local-first** | All data stays on the operator's machine |
+| **Provider-pluggable** | Same context pipeline; swappable backends via `config.toml` |
+| **Secrets via env** | API keys never stored in config files |
 
 ---
 
@@ -72,14 +78,22 @@ MemCon is a **stateless, single-process CLI middleware** that transforms a shell
 ```text
 memcon.py
 ├── CLI Router           parse_args(), main()
-├── Config Loader        load_global_config(), find_memcon_files()
+├── Config Loader        load_config(), load_global_config(), find_memcon_files()
 ├── Context Assembler    build_system_prompt(), read_memcon_context()
 ├── Workspace Engine     scan_workspace(), is_ignored(), check_syntax_validity()
 ├── Token Engine         calculate_precise_tokens(), get_dynamic_budget()
 ├── Compressor           compress_files_to_budget(), apply_budget_compression()
 ├── Payload Builder      assemble_payload()
-├── Ollama Client        stream_ollama_chat()
 └── Telemetry            append_history(), show_history()
+
+providers/
+├── __init__.py          stream_chat(), PROVIDERS registry
+├── messages.py          split_messages()
+├── ollama.py            Ollama /api/chat NDJSON stream
+├── anthropic.py         Anthropic /v1/messages SSE
+├── openai.py            OpenAI /v1/chat/completions SSE
+├── kiro.py              Kiro CLI subprocess (ACP or headless)
+└── kiro_acp.py          JSON-RPC ACP client for kiro-cli
 ```
 
 ### 3.2 Component responsibilities
@@ -87,14 +101,14 @@ memcon.py
 | Component | Responsibility |
 |-----------|----------------|
 | **CLI Router** | Parse flags, dispatch to history/version/show-context or main pipeline |
-| **Config Loader** | Bootstrap `global.json`, discover `.memcon` hierarchy |
+| **Config Loader** | Load `config.toml`, bootstrap `global.json`, discover `.memcon` hierarchy |
 | **Context Assembler** | Merge global persona + project rules into system prompt |
 | **Workspace Engine** | Walk directory tree, filter, validate Python syntax |
-| **Token Engine** | Heuristic token counting and model budget lookup |
+| **Token Engine** | Heuristic token counting and model budget lookup from `config.toml` |
 | **Compressor** | Fit workspace files within remaining token budget |
-| **Payload Builder** | Construct Ollama message array (system + workspace + user) |
-| **Ollama Client** | HTTP streaming to `/api/chat` |
-| **Telemetry** | Append/read session history |
+| **Payload Builder** | Construct message array (system + workspace + user) |
+| **Provider Router** | Dispatch to `ollama`, `anthropic`, `openai`, or `kiro` client |
+| **Telemetry** | Append/read session history (includes `provider` field) |
 
 ---
 
@@ -137,8 +151,8 @@ Terminal Input
                        │
                        ▼
             ┌─────────────────────┐
-            │ Ollama /api/chat    │
-            │ (stream)            │
+            │ Provider client     │
+            │ (HTTP or subprocess)│
             └──────────┬──────────┘
                        │
                        ▼
@@ -156,7 +170,8 @@ Terminal Input
 | Workspace files | `dict[str, str]` (relative path → content) |
 | System prompt | `str` |
 | Workspace context | `str` (markdown blocks) |
-| Payload | `list[dict]` (Ollama messages) |
+| Payload | `list[dict]` (chat messages) |
+| Provider config | `ProviderConfig` dataclass |
 | Response | `str` (accumulated stream) |
 
 ---
@@ -172,7 +187,7 @@ Terminal Input
 ```text
 --version  → print version, exit 0
 --history  → show_history(), exit 0
-(default)  → resolve input → pipeline → Ollama or --show-context
+(default)  → resolve input → pipeline → provider or --show-context
 ```
 
 **Input resolution priority:**
@@ -203,12 +218,17 @@ Two-tier divisor model:
 
 Budget lookup is substring-based on model name (case-insensitive).
 
-### 5.4 Ollama Client
+### 5.4 Provider clients
 
-- Transport: `urllib.request` (stdlib)
-- Mode: streaming (`stream: true`)
-- Output: incremental stdout flush
-- Accumulation: full response string returned for telemetry
+| Provider | Transport | Streaming |
+|----------|-----------|-----------|
+| Ollama | `urllib.request` HTTP | NDJSON lines |
+| Anthropic | `urllib.request` HTTP | SSE `content_block_delta` |
+| OpenAI | `urllib.request` HTTP | SSE `delta.content` |
+| Kiro ACP | `subprocess` + JSON-RPC stdio | `session/update` chunks |
+| Kiro headless | `subprocess` stdout | post-run print |
+
+All providers accumulate the full response string for telemetry.
 
 ---
 
@@ -237,7 +257,7 @@ Budget lookup is substring-based on model name (case-insensitive).
 2. **User message (workspace):** Tier 3 file blocks (if any)
 3. **User message (query):** Operator input
 
-This separation keeps project rules in the system role and code in a distinct user turn, matching Ollama chat conventions.
+Anthropic receives the system content in a top-level `system` field; OpenAI and Ollama use a `system` role message; Kiro receives a flattened markdown prompt.
 
 ---
 
@@ -267,19 +287,20 @@ If `baseline > max_budget`, the run aborts. User input is never truncated.
 
 ## 8. External Interfaces
 
-### 8.1 Ollama REST API
+### 8.1 Provider APIs
 
-| Property | Value |
-|----------|-------|
-| Protocol | HTTP |
-| Endpoint | `POST /api/chat` |
-| Auth | None (local trust boundary) |
-| Timeout | 600s |
+| Provider | Protocol | Auth |
+|----------|----------|------|
+| Ollama | HTTP `POST /api/chat` | None (local) |
+| Anthropic | HTTPS `POST /v1/messages` | `ANTHROPIC_API_KEY` |
+| OpenAI | HTTPS `POST /v1/chat/completions` | `OPENAI_API_KEY` |
+| Kiro | subprocess `kiro-cli acp` or `chat` | login or `KIRO_API_KEY` |
 
 ### 8.2 Filesystem
 
 | Path | Access | Purpose |
 |------|--------|---------|
+| `config.toml` (bundled or user) | R | App constants, provider defaults |
 | `~/.config/memcon/global.json` | R/W | Global persona |
 | `~/.config/memcon/history.json` | R/W | Session log |
 | `.memcon` (ancestors) | R | Project context |
@@ -288,9 +309,12 @@ If `baseline > max_budget`, the run aborts. User input is never truncated.
 
 ### 8.3 Environment
 
-| Variable | Default |
+| Variable | Purpose |
 |----------|---------|
-| `OLLAMA_HOST` | `http://localhost:11434` |
+| `MEMCON_PROVIDER` | Default backend |
+| `OLLAMA_HOST` | Ollama base URL |
+| `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` | Cloud credentials |
+| `KIRO_CLI_PATH` / `KIRO_API_KEY` | Kiro binary and headless key |
 
 ---
 
@@ -316,8 +340,9 @@ If `baseline > max_budget`, the run aborts. User input is never truncated.
 
 ```text
 Developer Machine
-├── devbox (Nix packages: python, pytest, pyinstaller, gnupg)
-├── memcon.py (source)
+├── devbox (python, pytest, pyinstaller, gnupg, podman)
+├── memcon.py + providers/ + config.toml
+├── Makefile / build.sh
 └── test_memcon.py
 ```
 
@@ -325,9 +350,9 @@ Developer Machine
 
 ```text
 User Machine
-├── memcon (single binary, no Python required)
-├── Ollama (system service)
-└── ~/.config/memcon/ (runtime state)
+├── memcon (single binary; embeds config.toml + providers)
+├── chosen backend (Ollama / API keys / kiro-cli)
+└── ~/.config/memcon/ (global.json, history.json, optional config.toml)
 ```
 
 ### Build pipeline
@@ -345,7 +370,7 @@ No server infrastructure. Distribution is file-based (archives + checksums).
 ### 11.1 Standard query with workspace scan
 
 ```text
-Operator          MemCon              Workspace Engine       Compressor         Ollama
+Operator          MemCon              Workspace Engine       Compressor         Provider
    │                │                       │                   │                │
    │ memcon "..."   │                       │                   │                │
    │ ──────────────►│                       │                   │                │
@@ -361,7 +386,7 @@ Operator          MemCon              Workspace Engine       Compressor         
    │                │──────────────────────────────────────────►│                │
    │                │◄──────────────────────────────────────────│ messages       │
    │                │                       │                   │                │
-   │                │ POST /api/chat (stream)                   │                │
+   │                │ stream_chat(provider)                     │                │
    │                │────────────────────────────────────────────────────────────►│
    │                │◄────────────────────────────────────────────────────────────│ chunks
    │◄───────────────│ stream to stdout      │                   │                │
@@ -372,7 +397,7 @@ Operator          MemCon              Workspace Engine       Compressor         
 
 ### 11.2 Context preview (--show-context)
 
-Same as above through compression, then print to stdout and exit without calling Ollama.
+Same as above through compression, then print to stdout and exit without calling a provider.
 
 ### 11.3 History query
 
@@ -393,7 +418,9 @@ Operator          MemCon
 |---------|----------|
 | Empty prompt | stderr message, exit 1 |
 | Baseline > budget | stderr message, exit 1 |
-| Ollama unreachable | `RuntimeError`, unhandled → exit 1 |
+| Provider unreachable / auth failure | `RuntimeError`, stderr → exit 1 |
+| Missing API key | `RuntimeError` for cloud providers |
+| kiro-cli not found | `RuntimeError` with install hint |
 | Invalid Python file | stderr warning, file skipped |
 | Unreadable file | silently skipped |
 | Binary/non-text file | excluded by extension filter |
@@ -408,19 +435,19 @@ Design choice: fail loud on operator errors (empty prompt, budget); degrade grac
 ### Trust boundaries
 
 ```text
-┌─────────────────────────────────────┐
-│  Operator's local machine (trusted) │
-│  ┌─────────┐      ┌──────────────┐  │
-│  │ MemCon  │─────►│ Ollama       │  │
-│  └────┬────┘      └──────────────┘  │
-│       │ reads local files only      │
-└───────┼─────────────────────────────┘
+┌──────────────────────────────────────────────┐
+│  Operator's machine                          │
+│  ┌─────────┐      ┌────────────────────────┐ │
+│  │ MemCon  │─────►│ Provider (local/cloud) │ │
+│  └────┬────┘      └────────────────────────┘ │
+│       │ reads local files; may send over net  │
+└───────┼──────────────────────────────────────┘
         ▼
    Filesystem (user permissions apply)
 ```
 
-- No network calls except to configured `OLLAMA_HOST`
-- No credential storage
+- Network calls to configured provider endpoints when not using local Ollama
+- API keys via environment variables only
 - History contains full prompts — sensitive data risk on shared machines
 - `.memconignore` is the primary exfiltration prevention for `--scan`
 - Release integrity via SHA-256 + optional GPG
@@ -431,11 +458,12 @@ Design choice: fail loud on operator errors (empty prompt, budget); degrade grac
 
 | Area | Potential enhancement |
 |------|----------------------|
-| Context | Multi-turn session files |
+| Context | Multi-turn session files; Kiro session persistence across runs |
 | Retrieval | Embedding-based file selection instead of full scan |
 | Tokenization | Model-specific tokenizer instead of heuristic |
+| Providers | Additional backends (Gemini, Azure OpenAI) |
 | Integrations | IDE plugin, shell completion |
-| Config | Schema validation for `global.json` |
+| Kiro | Expose `_kiro.dev/metadata` credits in history |
 | Platforms | Native Windows build without Podman |
 | Observability | Structured logging, metrics export |
 

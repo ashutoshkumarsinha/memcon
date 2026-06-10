@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Local MemCon — ambient memory manager and Ollama execution proxy."""
+"""Local MemCon — ambient memory manager and LLM execution proxy."""
 
 from __future__ import annotations
 
@@ -11,27 +11,41 @@ import os
 import re
 import sys
 import tomllib
-import urllib.error
-import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from providers import PROVIDERS, stream_chat
+
+
+@dataclass(frozen=True)
+class ProviderConfig:
+    name: str
+    default_model: str
+    timeout_seconds: int = 600
+    stream: bool = True
+    base_url: str = ""
+    endpoint: str = ""
+    api_key_env: str | None = None
+    api_version: str | None = None
+    max_output_tokens: int = 4096
+    cli_path: str = "kiro-cli"
+    mode: str = "acp"
+    auto_approve_tools: bool = True
 
 
 @dataclass(frozen=True)
 class AppConfig:
     version: str
     default_model: str
+    provider_name: str
+    provider: ProviderConfig
     config_dir: Path
     global_config_path: Path
     history_path: Path
     project_context_file: str
     ignore_file: str
-    ollama_host: str
-    ollama_chat_endpoint: str
-    ollama_timeout_seconds: int
-    ollama_stream: bool
     history_max_entries: int
     history_display_limit: int
     prompt_preview_length: int
@@ -70,18 +84,108 @@ def _load_toml(path: Path) -> dict[str, Any]:
         return tomllib.load(handle)
 
 
-def load_config(config_path: Path | None = None) -> AppConfig:
+def _load_provider_config(name: str, raw: dict[str, Any]) -> ProviderConfig:
+    if name == "ollama":
+        section = raw["ollama"]
+        return ProviderConfig(
+            name="ollama",
+            base_url=os.environ.get("OLLAMA_HOST", str(section["host"])).rstrip("/"),
+            endpoint=str(section["chat_endpoint"]),
+            default_model=str(section["default_model"]),
+            timeout_seconds=int(section["timeout_seconds"]),
+            stream=bool(section["stream"]),
+        )
+    if name == "anthropic":
+        section = raw["anthropic"]
+        return ProviderConfig(
+            name="anthropic",
+            base_url=str(section["base_url"]).rstrip("/"),
+            endpoint=str(section["messages_endpoint"]),
+            default_model=str(section["default_model"]),
+            api_key_env=str(section["api_key_env"]),
+            api_version=str(section["api_version"]),
+            max_output_tokens=int(section["max_output_tokens"]),
+            timeout_seconds=int(section["timeout_seconds"]),
+            stream=bool(section["stream"]),
+        )
+    if name == "openai":
+        section = raw["openai"]
+        base_url = os.environ.get(
+            "OPENAI_BASE_URL", str(section["base_url"])
+        ).rstrip("/")
+        return ProviderConfig(
+            name="openai",
+            base_url=base_url,
+            endpoint=str(section["chat_endpoint"]),
+            default_model=str(section["default_model"]),
+            api_key_env=str(section["api_key_env"]),
+            max_output_tokens=int(section["max_output_tokens"]),
+            timeout_seconds=int(section["timeout_seconds"]),
+            stream=bool(section["stream"]),
+        )
+    if name == "kiro":
+        section = raw["kiro"]
+        return ProviderConfig(
+            name="kiro",
+            default_model=str(section["default_model"]),
+            api_key_env=str(section.get("api_key_env", "KIRO_API_KEY")),
+            timeout_seconds=int(section["timeout_seconds"]),
+            cli_path=os.environ.get("KIRO_CLI_PATH", str(section.get("cli_path", "kiro-cli"))),
+            mode=str(section.get("mode", "acp")),
+            auto_approve_tools=bool(section.get("auto_approve_tools", True)),
+        )
+    known = "ollama, anthropic, openai, kiro"
+    raise ValueError(f"Unknown provider {name!r}. Choose from: {known}")
+
+
+def _resolve_provider_from_config(raw: dict[str, Any]) -> str:
+    section = raw.get("provider", {})
+    flag_map = {
+        "ollama": bool(section.get("use_ollama", False)),
+        "kiro": bool(section.get("use_kiro", False)),
+        "paid": bool(section.get("use_paid", False)),
+    }
+    enabled = [name for name, active in flag_map.items() if active]
+
+    if len(enabled) > 1:
+        raise ValueError(
+            "Multiple providers enabled in config.toml [provider]. "
+            f"Set exactly one of use_ollama, use_paid, use_kiro to true (found: {enabled})."
+        )
+    if len(enabled) == 1:
+        choice = enabled[0]
+        if choice == "paid":
+            paid = str(section.get("paid_provider", "anthropic")).lower()
+            if paid not in ("anthropic", "openai"):
+                raise ValueError(
+                    f"Invalid paid_provider {paid!r}. Choose anthropic or openai."
+                )
+            return paid
+        return choice
+
+    return str(section.get("name", "ollama")).lower()
+
+
+def load_config(
+    config_path: Path | None = None,
+    provider_name: str | None = None,
+) -> AppConfig:
     path = config_path or _resolve_config_path()
     raw = _load_toml(path)
 
     app = raw["app"]
     paths = raw["paths"]
-    ollama = raw["ollama"]
     history = raw["history"]
     tokens = raw["tokens"]
     workspace = raw["workspace"]
     budgets = raw["budgets"]
     global_defaults = raw["global_defaults"]
+    resolved_provider = (
+        provider_name
+        or os.environ.get("MEMCON_PROVIDER")
+        or _resolve_provider_from_config(raw)
+    ).lower()
+    provider = _load_provider_config(resolved_provider, raw)
 
     config_dir = Path(
         os.environ.get(
@@ -97,16 +201,14 @@ def load_config(config_path: Path | None = None) -> AppConfig:
 
     return AppConfig(
         version=str(app["version"]),
-        default_model=str(app["default_model"]),
+        default_model=provider.default_model or str(app["default_model"]),
+        provider_name=resolved_provider,
+        provider=provider,
         config_dir=config_dir,
         global_config_path=config_dir / paths["global_config_file"],
         history_path=config_dir / paths["history_file"],
         project_context_file=str(paths["project_context_file"]),
         ignore_file=str(paths["ignore_file"]),
-        ollama_host=os.environ.get("OLLAMA_HOST", str(ollama["host"])).rstrip("/"),
-        ollama_chat_endpoint=str(ollama["chat_endpoint"]),
-        ollama_timeout_seconds=int(ollama["timeout_seconds"]),
-        ollama_stream=bool(ollama["stream"]),
         history_max_entries=int(history["max_entries"]),
         history_display_limit=int(history["display_limit"]),
         prompt_preview_length=int(history["prompt_preview_length"]),
@@ -376,39 +478,9 @@ def apply_budget_compression(
     return assemble_payload(system_prompt, workspace_context, user_input), workspace_context
 
 
-def stream_ollama_chat(model: str, messages: list[dict]) -> str:
-    payload = json.dumps(
-        {"model": model, "messages": messages, "stream": CFG.ollama_stream}
-    ).encode()
-    req = urllib.request.Request(
-        f"{CFG.ollama_host}{CFG.ollama_chat_endpoint}",
-        data=payload,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    chunks: list[str] = []
-    try:
-        with urllib.request.urlopen(req, timeout=CFG.ollama_timeout_seconds) as resp:
-            for raw_line in resp:
-                line = raw_line.decode().strip()
-                if not line:
-                    continue
-                data = json.loads(line)
-                content = data.get("message", {}).get("content", "")
-                if content:
-                    print(content, end="", flush=True)
-                    chunks.append(content)
-                if data.get("done"):
-                    break
-    except urllib.error.URLError as exc:
-        raise RuntimeError(f"Ollama request failed: {exc}") from exc
-
-    print()
-    return "".join(chunks)
-
-
 def append_history(
     cwd: str,
+    provider: str,
     model: str,
     system_prompt: str,
     user_input: str,
@@ -423,6 +495,7 @@ def append_history(
     entry = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "cwd": cwd,
+        "provider": provider,
         "model": model,
         "system_prompt": system_prompt,
         "workspace_context": workspace_context,
@@ -442,10 +515,11 @@ def show_history(limit: int | None = None) -> None:
     history = json.loads(CFG.history_path.read_text())
     for idx, entry in enumerate(history[-display_limit:], start=1):
         ts = entry.get("timestamp", "?")
+        provider = entry.get("provider", "?")
         model = entry.get("model", "?")
         cwd = entry.get("cwd", "?")
         prompt_preview = (entry.get("user_input") or "")[: CFG.prompt_preview_length]
-        print(f"{idx}. [{ts}] model={model} cwd={cwd}")
+        print(f"{idx}. [{ts}] provider={provider} model={model} cwd={cwd}")
         print(f"   prompt: {prompt_preview!r}")
         print()
 
@@ -465,10 +539,17 @@ def resolve_user_input(prompt_or_file: str | None) -> str:
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="memcon",
-        description="Local ambient memory manager and Ollama execution proxy.",
+        description="Local ambient memory manager and LLM execution proxy.",
     )
     parser.add_argument("prompt_or_file", nargs="?", default=None)
-    parser.add_argument("-m", "--model", default=CFG.default_model)
+    parser.add_argument(
+        "-p",
+        "--provider",
+        choices=tuple(sorted(PROVIDERS.keys())),
+        default=None,
+        help="LLM backend (default from config.toml or MEMCON_PROVIDER)",
+    )
+    parser.add_argument("-m", "--model", default=None)
     parser.add_argument("-s", "--show-context", action="store_true")
     parser.add_argument("-hi", "--history", action="store_true")
     parser.add_argument("-sc", "--scan", action="store_true")
@@ -486,6 +567,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.history:
         show_history()
         return 0
+
+    active_cfg = load_config(provider_name=args.provider)
+    model = args.model or active_cfg.default_model
 
     user_input = resolve_user_input(args.prompt_or_file)
     if not user_input:
@@ -505,7 +589,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         messages, workspace_context = apply_budget_compression(
-            system_prompt, workspace_files, user_input, args.model
+            system_prompt, workspace_files, user_input, model
         )
     except ValueError as exc:
         print(f"Error: {exc}", file=sys.stderr)
@@ -519,12 +603,21 @@ def main(argv: list[str] | None = None) -> int:
             print(workspace_context)
         print("\n=== User Input ===")
         print(user_input)
+        print(f"\n=== Provider ===\n{active_cfg.provider_name} / {model}")
         return 0
 
-    response = stream_ollama_chat(args.model, messages)
+    try:
+        response = stream_chat(
+            active_cfg.provider_name, model, messages, active_cfg
+        )
+    except (RuntimeError, ValueError) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+
     append_history(
         cwd=str(Path.cwd()),
-        model=args.model,
+        provider=active_cfg.provider_name,
+        model=model,
         system_prompt=system_prompt,
         user_input=user_input,
         workspace_context=workspace_context,

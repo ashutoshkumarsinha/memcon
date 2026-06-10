@@ -1,7 +1,20 @@
 [app]
 version = "1.0"
 default_model = "llama3"
-description = "Local ambient memory manager and Ollama execution proxy."
+description = "Local ambient memory manager and LLM execution proxy."
+
+[provider]
+# Pick your default backend — set exactly one flag to true.
+# Overridden by --provider or MEMCON_PROVIDER.
+use_ollama = true
+use_paid = false
+use_kiro = false
+
+# When use_paid = true, choose the paid API:
+paid_provider = "anthropic"  # anthropic | openai
+
+# Legacy fallback when all use_* flags are false:
+name = "ollama"
 
 [paths]
 # Resolved under the user home directory unless MEMCON_CONFIG_DIR is set.
@@ -12,11 +25,39 @@ project_context_file = ".memcon"
 ignore_file = ".memconignore"
 
 [ollama]
-# Overridden by the OLLAMA_HOST environment variable when set.
 host = "http://localhost:11434"
 chat_endpoint = "/api/chat"
+default_model = "llama3"
 timeout_seconds = 600
 stream = true
+
+[anthropic]
+base_url = "https://api.anthropic.com"
+messages_endpoint = "/v1/messages"
+api_key_env = "ANTHROPIC_API_KEY"
+api_version = "2023-06-01"
+default_model = "claude-sonnet-4-20250514"
+max_output_tokens = 4096
+timeout_seconds = 600
+stream = true
+
+[openai]
+base_url = "https://api.openai.com"
+chat_endpoint = "/v1/chat/completions"
+api_key_env = "OPENAI_API_KEY"
+default_model = "gpt-4o"
+max_output_tokens = 4096
+timeout_seconds = 600
+stream = true
+
+[kiro]
+# mode: "acp" (JSON-RPC agent protocol, streaming) or "headless" (kiro-cli chat --no-interactive)
+mode = "acp"
+cli_path = "kiro-cli"
+api_key_env = "KIRO_API_KEY"
+default_model = "default"
+timeout_seconds = 600
+auto_approve_tools = true
 
 [history]
 max_entries = 50
@@ -46,6 +87,18 @@ allowed_extensions = [
   ".go", ".rs", ".html", ".css",
   ".json", ".md", ".txt", ".yml", ".yaml",
 ]
+
+[[budgets.rules]]
+patterns = ["kiro", "claude-opus", "opus-4", "gpt-4.1"]
+tokens = 128000
+
+[[budgets.rules]]
+patterns = ["claude-sonnet", "sonnet-4", "gpt-4o"]
+tokens = 128000
+
+[[budgets.rules]]
+patterns = ["claude-haiku", "haiku", "gpt-4o-mini", "gpt-3.5"]
+tokens = 128000
 
 [[budgets.rules]]
 patterns = ["70b"]

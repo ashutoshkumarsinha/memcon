@@ -1,4 +1,11 @@
-# Managed via devbox (python312Packages.*). Listed here for reference.
+# Managed via devbox. Listed here for reference.
+#
+# Python (python312Packages.*):
+#   pytest, pytest-mock, pyinstaller
+#
+# System tools:
+#   gnupg, podman, gnumake, zip, kiro-cli
+
 pytest>=8.0
 pytest-mock>=3.12
 pyinstaller>=6.0

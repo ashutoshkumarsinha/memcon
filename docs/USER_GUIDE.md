@@ -1,6 +1,6 @@
 # Local MemCon — User Guide
 
-A practical guide for day-to-day use of MemCon as a shell-integrated assistant for local Ollama models.
+A practical guide for day-to-day use of MemCon as a shell-integrated assistant across **Ollama**, **Anthropic**, **OpenAI**, and **Kiro CLI**.
 
 ---
 
@@ -8,27 +8,29 @@ A practical guide for day-to-day use of MemCon as a shell-integrated assistant f
 
 1. [What MemCon Does](#what-memcon-does)
 2. [Getting Started](#getting-started)
-3. [Basic Usage](#basic-usage)
-4. [Context Layers](#context-layers)
-5. [Workspace Scanning](#workspace-scanning)
-6. [Filtering with .memconignore](#filtering-with-memconignore)
-7. [Choosing a Model](#choosing-a-model)
-8. [Inspecting Context](#inspecting-context)
-9. [Session History](#session-history)
-10. [Workflow Examples](#workflow-examples)
-11. [Tips and Limitations](#tips-and-limitations)
+3. [Choosing a Provider](#choosing-a-provider)
+4. [Basic Usage](#basic-usage)
+5. [Context Layers](#context-layers)
+6. [Application Config (`config.toml`)](#application-config-configtoml)
+7. [Workspace Scanning](#workspace-scanning)
+8. [Filtering with .memconignore](#filtering-with-memconignore)
+9. [Choosing a Model](#choosing-a-model)
+10. [Inspecting Context](#inspecting-context)
+11. [Session History](#session-history)
+12. [Workflow Examples](#workflow-examples)
+13. [Tips and Limitations](#tips-and-limitations)
 
 ---
 
 ## What MemCon Does
 
-MemCon eliminates repeated manual context setup across shell sessions. Instead of pasting system prompts, style guides, and file contents every time you talk to a local model, MemCon:
+MemCon eliminates repeated manual context setup across shell sessions. Instead of pasting system prompts, style guides, and file contents every time you talk to a model, MemCon:
 
 1. Loads your global persona automatically
 2. Discovers project-specific rules from `.memcon` files
 3. Optionally bundles workspace source files into the prompt
 4. Fits everything within your model's token budget
-5. Streams the response from Ollama
+5. Streams the response from your chosen provider
 6. Logs the session for later review
 
 MemCon is **not** a persistent chat UI. Each invocation builds a fresh, optimized prompt for a single query.
@@ -37,11 +39,14 @@ MemCon is **not** a persistent chat UI. Each invocation builds a fresh, optimize
 
 ## Getting Started
 
-### 1. Install Ollama and pull a model
+### 1. Pick and configure a provider
 
-```bash
-ollama pull llama3
-```
+| Provider | Setup |
+|----------|-------|
+| **Ollama** (default) | `ollama pull llama3` and ensure Ollama is running |
+| **Anthropic** | `export ANTHROPIC_API_KEY=sk-ant-...` |
+| **OpenAI** | `export OPENAI_API_KEY=sk-...` |
+| **Kiro CLI** | Install from [kiro.dev](https://kiro.dev), then `kiro-cli auth login` |
 
 ### 2. Install MemCon
 
@@ -57,36 +62,75 @@ python memcon.py --version
 
 ```bash
 memcon "What is a Python decorator?"
+memcon "Refactor auth" --scan --provider anthropic -m claude-sonnet-4-20250514
 ```
 
 On first run, MemCon creates `~/.config/memcon/global.json` with default persona settings.
 
 ---
 
+## Choosing a Provider
+
+Use `-p` / `--provider` or set `MEMCON_PROVIDER` / `config.toml`:
+
+```bash
+# Local Ollama
+memcon "Explain decorators" --provider ollama -m llama3
+
+# Anthropic direct API
+export ANTHROPIC_API_KEY=sk-ant-...
+memcon "Write tests" --scan --provider anthropic -m claude-sonnet-4-20250514
+
+# OpenAI direct API
+export OPENAI_API_KEY=sk-...
+memcon "Summarize module" --scan --provider openai -m gpt-4o
+
+# Kiro CLI (ACP streaming)
+kiro-cli auth login
+memcon "Refactor payment service" --scan --provider kiro
+```
+
+### Kiro CLI modes
+
+Configured in `config.toml` under `[kiro]`:
+
+| Mode | Description | Auth |
+|------|-------------|------|
+| `acp` (default) | JSON-RPC agent protocol via `kiro-cli acp`; streams chunks | `kiro-cli auth login` |
+| `headless` | `kiro-cli chat --no-interactive` | `KIRO_API_KEY` |
+
+Headless is useful for CI pipelines:
+
+```bash
+export KIRO_API_KEY=...
+# set mode = "headless" in config.toml or ~/.config/memcon/config.toml
+memcon "Review PR" --scan --provider kiro
+```
+
+---
+
 ## Basic Usage
 
 ```text
-memcon [-h] [--model MODEL] [--show-context] [--history] [--scan] [--version] [prompt_or_file]
+memcon [-h] [--provider PROVIDER] [--model MODEL] [--show-context] [--history] [--scan] [--version] [prompt_or_file]
 ```
 
 ### Prompt as text
 
 ```bash
-memcon "Write unit tests for the auth module"
+memcon "Write unit tests for the auth module" --scan --provider openai
 ```
 
 ### Prompt from a file
 
 ```bash
-memcon prompts/refactor-brief.md
+memcon prompts/refactor-brief.md --provider anthropic
 ```
-
-The file contents become the user message.
 
 ### Multiline input (no argument)
 
 ```bash
-memcon
+memcon --provider ollama
 ```
 
 Type or paste your prompt, then press `Ctrl+D` (macOS/Linux) or `Ctrl+Z` then Enter (Windows).
@@ -95,11 +139,21 @@ Type or paste your prompt, then press `Ctrl+D` (macOS/Linux) or `Ctrl+Z` then En
 
 | Flag | Short | Effect |
 |------|-------|--------|
-| `--model` | `-m` | Set Ollama model (default: `llama3`) |
+| `--provider` | `-p` | Backend: `ollama`, `anthropic`, `openai`, `kiro` |
+| `--model` | `-m` | Model name (default from provider section in `config.toml`) |
 | `--scan` | `-sc` | Include workspace files in context |
-| `--show-context` | `-s` | Print assembled prompt; do not call Ollama |
+| `--show-context` | `-s` | Print assembled prompt; no API call |
 | `--history` | `-hi` | Show last 10 sessions |
 | `--version` | `-v` | Print version |
+
+### Makefile shortcuts
+
+```bash
+make run ARGS='"Explain this module" --scan'
+make run-anthropic ARGS='"Write tests" --scan' MODEL=claude-sonnet-4-20250514
+make run-kiro ARGS='"Refactor auth" --scan'
+make show-context ARGS='"prompt" --scan'
+```
 
 ---
 
@@ -119,22 +173,9 @@ MemCon assembles context from three tiers, applied in order:
 }
 ```
 
-Edit this file to set your default voice and preferences across all projects.
-
 ### Tier 2 — Project context
 
-**File:** `.memcon` in any ancestor directory
-
-Place a `.memcon` file in your repo root (or a parent directory):
-
-```text
-# .memcon
-This project uses FastAPI with SQLAlchemy 2.0.
-Follow PEP 8. All new endpoints require OpenAPI annotations.
-Database migrations live in alembic/versions/.
-```
-
-MemCon walks from your current directory up to `/` and merges every `.memcon` file found, root-first.
+**File:** `.memcon` in any ancestor directory — merged root-to-leaf upward from `PWD`.
 
 ### Tier 3 — Workspace files (optional)
 
@@ -142,185 +183,151 @@ Activated with `--scan`. See [Workspace Scanning](#workspace-scanning).
 
 ---
 
-## Workspace Scanning
+## Application Config (`config.toml`)
 
-Use `--scan` when you want the model to see actual source files:
+Runtime constants and per-provider defaults live in `config.toml`. Override location with `MEMCON_CONFIG_FILE`; user override at `~/.config/memcon/config.toml` takes precedence when present.
+
+Key sections:
+
+```toml
+[provider]
+use_ollama = true   # local Ollama
+use_paid = false    # Anthropic or OpenAI (set paid_provider)
+use_kiro = false    # Kiro CLI
+paid_provider = "anthropic"  # anthropic | openai (when use_paid = true)
+
+[ollama]
+host = "http://localhost:11434"
+default_model = "llama3"
+
+[anthropic]
+default_model = "claude-sonnet-4-20250514"
+api_key_env = "ANTHROPIC_API_KEY"
+
+[openai]
+default_model = "gpt-4o"
+api_key_env = "OPENAI_API_KEY"
+
+[kiro]
+mode = "acp"      # or "headless"
+cli_path = "kiro-cli"
+auto_approve_tools = true
+```
+
+Environment variables:
+
+| Variable | Effect |
+|----------|--------|
+| `MEMCON_PROVIDER` | Default provider |
+| `OLLAMA_HOST` | Ollama base URL |
+| `OPENAI_BASE_URL` | OpenAI-compatible API base |
+| `ANTHROPIC_API_KEY` | Anthropic credentials |
+| `OPENAI_API_KEY` | OpenAI credentials |
+| `KIRO_CLI_PATH` | Path to `kiro-cli` binary |
+| `KIRO_API_KEY` | Kiro headless API key |
+
+---
+
+## Workspace Scanning
 
 ```bash
 cd ~/projects/my-api
-memcon "Find potential SQL injection risks" --scan
+memcon "Find SQL injection risks" --scan --provider anthropic
 ```
 
-### Scan behavior
+- Traverses up to **3 directory levels** from `PWD`
+- Filters via `.memconignore` and built-in exclusions
+- Validates Python with `ast.parse` before inclusion
+- Drops files when token budget is exceeded
 
-- Traverses up to **3 directory levels** from the current working directory
-- Reads only permitted text/code extensions (`.py`, `.js`, `.ts`, `.go`, `.rs`, `.md`, etc.)
-- Skips directories like `node_modules/`, `.git/`, `venv/` automatically
-- Validates Python files with `ast.parse` before inclusion; broken files are skipped with a warning
-- Drops files if total context exceeds the model token budget (alphabetically last files removed first)
-
-### When to use `--scan`
-
-| Scenario | Use `--scan`? |
-|----------|---------------|
-| General question, no code context needed | No |
-| Code review, refactoring, test generation | Yes |
-| Large monorepo | Yes, but add `.memconignore` rules |
-| Sensitive repo with secrets | Only after configuring `.memconignore` |
+**Cloud providers:** `--scan` sends file contents to third-party APIs. Review `.memconignore` carefully.
 
 ---
 
 ## Filtering with .memconignore
 
-Create `.memconignore` in your project root to exclude files from scanning:
-
 ```text
-# Secrets and credentials
 secrets/
 *.env
-config/local.json
-
-# Generated output
 *.log
-coverage/
+config/local.json
 ```
 
-### Syntax
-
-| Pattern | Matches |
-|---------|---------|
-| `*.log` | Files by glob |
-| `secrets/` | Everything under `secrets/` |
-| `config/local.json` | Specific file path |
-
-Lines starting with `#` are comments.
-
-### Always excluded (no config needed)
-
-`.git/`, `node_modules/`, `__pycache__/`, `.venv/`, `venv/`, `dist/`, `build/`, `.memcon`, `.memconignore`, `.DS_Store`
+Always excluded: `.git/`, `node_modules/`, `__pycache__/`, `.venv/`, `venv/`, `dist/`, `build/`, `.memcon`, `.memconignore`, `.DS_Store`
 
 ---
 
 ## Choosing a Model
 
 ```bash
-memcon "Explain this function" --scan -m qwen2.5:14b
+memcon "Explain this function" --scan -m gpt-4o --provider openai
 ```
 
-MemCon adjusts the context token budget based on the model name:
+Token budgets are defined in `config.toml` `[[budgets.rules]]`:
 
 | Model pattern | Token budget |
 |---------------|--------------|
-| Contains `70b` | 16,000 |
-| Contains `32b` or `14b` | 8,000 |
-| Contains `8b`, `llama3`, or `phi3` | 4,000 |
-| Unknown models | 4,000 (safe default) |
-
-Larger models accept more workspace files before compression kicks in.
-
-List available models:
-
-```bash
-ollama list
-```
+| `claude-*`, `gpt-4*`, `kiro` | 128,000 |
+| `70b` | 16,000 |
+| `32b`, `14b` | 8,000 |
+| `8b`, `llama3`, `phi3` | 4,000 |
+| default | 4,000 |
 
 ---
 
 ## Inspecting Context
 
-Before sending an expensive or sensitive prompt, preview what MemCon will send:
-
 ```bash
-memcon "Refactor the payment service" --scan --show-context
+memcon "Refactor payment service" --scan --show-context --provider anthropic
 ```
 
-Output sections:
-
-```text
-=== System Prompt ===
-(your persona + .memcon context)
-
-=== Workspace Context ===
-(scanned file contents, if any fit the budget)
-
-=== User Input ===
-(your prompt)
-```
-
-No request is sent to Ollama in this mode.
+Output includes system prompt, workspace context, user input, and selected provider/model. No API call is made.
 
 ---
 
 ## Session History
 
-MemCon logs every completed run to `~/.config/memcon/history.json` (last 50 sessions retained).
-
-View recent sessions:
-
 ```bash
 memcon --history
 ```
 
-Example output:
-
 ```text
-1. [2026-06-09T14:32:01+00:00] model=llama3 cwd=/home/user/my-api
+1. [2026-06-09T14:32:01+00:00] provider=anthropic model=claude-sonnet-4-20250514 cwd=/home/user/my-api
    prompt: 'Find potential SQL injection risks'
-
-2. [2026-06-09T14:28:15+00:00] model=llama3 cwd=/home/user/my-api
-   prompt: 'Write unit tests for auth.py'
 ```
 
-Each entry stores the full system prompt, workspace context, user input, and model response. Use this for auditing what was sent to the model.
+Stored in `~/.config/memcon/history.json` (last 50 sessions).
 
 ---
 
 ## Workflow Examples
 
-### Code review
+### Code review with Claude
 
 ```bash
+export ANTHROPIC_API_KEY=sk-ant-...
 cd ~/projects/web-app
-memcon "Review src/auth/login.ts for security issues" --scan -m llama3
+memcon "Review src/auth/login.ts" --scan --provider anthropic
 ```
 
-### Generate tests from a spec file
+### Test generation with OpenAI
 
 ```bash
-memcon test-spec.md --scan -m codestral
+memcon test-spec.md --scan --provider openai -m gpt-4o
 ```
 
-### Project onboarding
-
-Create `.memcon` in the repo:
-
-```text
-# .memcon
-Monorepo layout:
-- apps/api/     REST API (Python/FastAPI)
-- apps/web/     React frontend
-- packages/core/ shared types
-```
-
-Then ask:
+### Agentic coding with Kiro
 
 ```bash
-memcon "Where should I add a new webhook endpoint?" --scan
+kiro-cli auth login
+memcon "Implement webhook endpoint with tests" --scan --provider kiro
 ```
 
-### Quick question without code context
+### Local offline with Ollama
 
 ```bash
-memcon "Difference between asyncio.gather and TaskGroup?"
+memcon "Difference between asyncio.gather and TaskGroup?" --provider ollama
 ```
-
-### Debug context budget issues
-
-```bash
-memcon "long prompt here..." --scan --show-context
-```
-
-If workspace files are missing from the output, the token budget forced them to be dropped. Use a larger model or shorten your prompt.
 
 ---
 
@@ -328,25 +335,29 @@ If workspace files are missing from the output, the token budget forced them to 
 
 ### Tips
 
-- Put stable project conventions in `.memcon`; put personal preferences in `global.json`
-- Always run `--show-context` once when setting up a new project's `.memconignore`
-- Use `-m` to match model size to task complexity and context needs
-- Pipe output to a file: `memcon "..." --scan > response.txt` captures only stdout (streaming prints live)
+- Use `--show-context` before sending large scans to cloud providers
+- Put project conventions in `.memcon`; personal preferences in `global.json`
+- For Kiro CI jobs, use `mode = "headless"` and `KIRO_API_KEY`
+- Never commit API keys; use environment variables only
 
 ### Limitations
 
-- **Single-turn only** — no multi-turn conversation memory between invocations
-- **Scan depth** — files more than 3 directories deep are not included
-- **Token estimation** — uses a heuristic, not a tokenizer; actual model usage may differ
-- **Python-only syntax check** — other languages are included without AST validation
-- **Local only** — requires a running Ollama instance; no cloud fallback
+- **Single-turn only** — no multi-turn memory between invocations
+- **Scan depth** — 3 directory levels maximum
+- **Token heuristic** — approximate, not model-specific tokenizers
+- **Kiro ACP** — requires `kiro-cli` installed and authenticated
+- **Cloud cost** — Anthropic/OpenAI/Kiro usage is billed per provider
 
 ### Error messages
 
 | Message | Meaning |
 |---------|---------|
 | `Error: empty prompt.` | No text provided |
-| `Baseline prompt exceeds model budget` | Your prompt + system context is too large; shorten input or use a bigger model |
-| `Ollama request failed` | Cannot reach Ollama; check that the service is running |
+| `Baseline prompt exceeds model budget` | Shorten input or use a larger model |
+| `Ollama request failed` | Ollama not reachable |
+| `Anthropic request failed` | Check API key and model name |
+| `OpenAI request failed` | Check API key and model name |
+| `kiro-cli not found` | Install Kiro or set `KIRO_CLI_PATH` |
+| `Missing API key` | Set the provider's key env var |
 
-For deployment and installation details, see [DEPLOYMENT.md](DEPLOYMENT.md).
+For deployment and installation, see [DEPLOYMENT.md](DEPLOYMENT.md).

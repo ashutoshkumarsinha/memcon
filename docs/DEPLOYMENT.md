@@ -53,12 +53,16 @@ releases/
 
 ### Target machine (end user)
 
-| Tool | Purpose |
-|------|---------|
-| Ollama | Local LLM inference server |
-| At least one pulled model | e.g. `ollama pull llama3` |
+MemCon has **no Python runtime dependency** when deployed as a compiled binary. Configure **one** LLM backend:
 
-MemCon has **no Python runtime dependency** on the target machine when deployed as a compiled binary.
+| Provider | Requirement |
+|----------|-------------|
+| **Ollama** | Ollama running locally; model pulled (e.g. `ollama pull llama3`) |
+| **Anthropic** | `ANTHROPIC_API_KEY` environment variable |
+| **OpenAI** | `OPENAI_API_KEY` environment variable |
+| **Kiro CLI** | `kiro-cli` installed; `kiro-cli auth login` (ACP) or `KIRO_API_KEY` (headless) |
+
+Bundled `config.toml` is embedded in the PyInstaller binary; override via `~/.config/memcon/config.toml`.
 
 ---
 
@@ -81,12 +85,23 @@ This invokes `build.sh`, which:
 6. Signs manifest if GPG is configured
 7. Sends a desktop notification on macOS/Linux
 
+### Using Make
+
+```bash
+make test
+make build
+make checksum    # verify releases/SHASUMS256.txt
+```
+
 ### Manual build
 
 ```bash
 devbox shell
 pytest -v test_memcon.py
-pyinstaller --onefile --name memcon memcon.py
+pyinstaller --onefile --name memcon \
+  --add-data "config.toml:." \
+  --collect-submodules providers \
+  memcon.py
 tar -czf releases/memcon-v1.0-host.tar.gz -C dist memcon
 ```
 
@@ -95,8 +110,8 @@ tar -czf releases/memcon-v1.0-host.tar.gz -C dist memcon
 Requires Podman:
 
 ```bash
-podman run --rm -v "$(pwd):/src" cdrx/pyinstaller-windows \
-  "pyinstaller --onefile --name memcon /src/memcon.py"
+podman run --rm -v "$(pwd):/src" -w /src cdrx/pyinstaller-windows \
+  bash -lc 'pyinstaller --onefile --name memcon --add-data "config.toml:." --collect-submodules providers memcon.py'
 ```
 
 If successful, `dist/memcon.exe` is zipped into `releases/memcon-v1.0-win64.zip`.
@@ -182,30 +197,41 @@ No manual configuration is required to start using the tool.
 
 ## Runtime Dependencies
 
-### Ollama
-
-Install and start Ollama from [ollama.com](https://ollama.com), then pull a model:
+### Ollama (`--provider ollama`)
 
 ```bash
 ollama pull llama3
-ollama serve   # usually runs automatically as a service
-```
-
-Confirm the API is reachable:
-
-```bash
 curl http://localhost:11434/api/tags
 ```
 
-### Network
+### Anthropic (`--provider anthropic`)
 
-MemCon communicates with Ollama over HTTP. Default endpoint:
-
-```text
-http://localhost:11434
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+memcon "Hello" --provider anthropic
 ```
 
-For remote Ollama instances, set `OLLAMA_HOST` before running MemCon (see below).
+### OpenAI (`--provider openai`)
+
+```bash
+export OPENAI_API_KEY=sk-...
+memcon "Hello" --provider openai
+```
+
+Optional compatible endpoint:
+
+```bash
+export OPENAI_BASE_URL=https://your-proxy.example/v1
+```
+
+### Kiro CLI (`--provider kiro`)
+
+```bash
+curl -fsSL https://kiro.dev/install.sh | sh
+kiro-cli auth login          # ACP mode (default)
+# or
+export KIRO_API_KEY=...      # headless mode (set [kiro].mode = "headless")
+```
 
 ---
 
@@ -213,20 +239,26 @@ For remote Ollama instances, set `OLLAMA_HOST` before running MemCon (see below)
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `MEMCON_PROVIDER` | from `config.toml` | Active backend |
+| `MEMCON_CONFIG_FILE` | bundled / user path | Alternate `config.toml` |
+| `MEMCON_CONFIG_DIR` | `~/.config/memcon` | User state directory |
 | `OLLAMA_HOST` | `http://localhost:11434` | Ollama API base URL |
+| `ANTHROPIC_API_KEY` | — | Anthropic API key |
+| `OPENAI_API_KEY` | — | OpenAI API key |
+| `OPENAI_BASE_URL` | `https://api.openai.com` | OpenAI-compatible base |
+| `KIRO_CLI_PATH` | `kiro-cli` | Path to Kiro binary |
+| `KIRO_API_KEY` | — | Kiro headless API key |
 
 Examples:
 
 ```bash
-# Remote Ollama server
-export OLLAMA_HOST=http://192.168.1.50:11434
+export MEMCON_PROVIDER=anthropic
+export ANTHROPIC_API_KEY=sk-ant-...
 memcon "Summarize this repo" --scan
 
-# Custom port
-export OLLAMA_HOST=http://127.0.0.1:11435
+export OLLAMA_HOST=http://192.168.1.50:11434
+memcon "Explain module" --provider ollama
 ```
-
-Persist in shell profile for all sessions.
 
 ---
 
@@ -253,7 +285,10 @@ User config at `~/.config/memcon/` is preserved across upgrades.
 | Symptom | Likely cause | Resolution |
 |---------|--------------|------------|
 | `Ollama request failed` | Ollama not running | Start Ollama; verify `curl $OLLAMA_HOST/api/tags` |
-| `Baseline prompt exceeds model budget` | Prompt too large for model | Shorten input or use a larger model (`-m`) |
+| `Anthropic/OpenAI request failed` | Bad key or model | Verify env var and model name |
+| `kiro-cli not found` | Not installed | Install from kiro.dev; set `KIRO_CLI_PATH` |
+| `Missing API key` | Env not set | Export provider key before running |
+| `Baseline prompt exceeds model budget` | Prompt too large | Shorten input or use a larger model (`-m`) |
 | Build fails at pytest | Code regression | Fix failing tests before releasing |
 | Windows binary missing | Podman unavailable | Install Podman or distribute host-only build |
 | GPG sign skipped | No key configured | Run `gpg --gen-key` or skip signing for internal builds |
@@ -263,13 +298,16 @@ User config at `~/.config/memcon/` is preserved across upgrades.
 
 - Session history: `memcon --history`
 - Context preview (no API call): `memcon "test" --scan --show-context`
-- Ollama model list: `ollama list`
+- Ollama models: `ollama list`
+- Kiro auth: `kiro-cli auth status`
 
 ---
 
 ## Security Considerations
 
 - MemCon reads files from the local filesystem when `--scan` is used. Review `.memconignore` before scanning sensitive projects.
+- Cloud providers (Anthropic, OpenAI) and Kiro transmit prompt content over the network. Never scan secrets without filtering.
+- Store API keys in environment variables or CI secrets — never in `config.toml` or git.
 - `history.json` stores full prompts and responses locally. Restrict file permissions on shared machines:
 
   ```bash

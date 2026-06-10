@@ -1,6 +1,6 @@
 # Local MemCon
 
-Ambient memory manager and command-line proxy for [Ollama](https://ollama.com). MemCon sits between your shell and the local Ollama API, assembling context from global and project-level config, optionally scanning your workspace, and streaming responses while logging session history.
+Ambient memory manager and command-line proxy for local and cloud LLMs. MemCon assembles context from global and project-level config, optionally scans your workspace, and streams responses via **Ollama**, **Anthropic**, **OpenAI**, or **Kiro CLI**.
 
 ## Documentation
 
@@ -21,14 +21,44 @@ Ambient memory manager and command-line proxy for [Ollama](https://ollama.com). 
 
 ## Prerequisites
 
-- [Ollama](https://ollama.com) running locally (default: `http://localhost:11434`)
 - [devbox](https://www.jetify.com/devbox) for the development environment
+- A configured LLM backend:
+  - **Ollama** — local server at `http://localhost:11434`
+  - **Anthropic** — `ANTHROPIC_API_KEY`
+  - **OpenAI** — `OPENAI_API_KEY`
+  - **Kiro CLI** — [kiro.dev](https://kiro.dev) with `kiro-cli auth login` or `KIRO_API_KEY`
 
-Override the Ollama host with:
+### Provider selection
+
+Set the active backend in `config.toml` (`use_ollama`, `use_paid`, `use_kiro`) or via CLI/env:
 
 ```bash
+# Anthropic
+export ANTHROPIC_API_KEY=sk-ant-...
+memcon "Refactor auth" --scan --provider anthropic -m claude-sonnet-4-20250514
+
+# OpenAI
+export OPENAI_API_KEY=sk-...
+memcon "Write tests" --scan --provider openai -m gpt-4o
+
+# Ollama (default)
 export OLLAMA_HOST=http://localhost:11434
+memcon "Explain decorators" --provider ollama -m llama3
+
+# Kiro CLI (ACP streaming)
+kiro-cli auth login
+memcon "Refactor auth module" --scan --provider kiro
 ```
+
+| Variable | Effect |
+|----------|--------|
+| `MEMCON_PROVIDER` | Default provider (`ollama`, `anthropic`, `openai`, `kiro`) |
+| `KIRO_CLI_PATH` | Path to `kiro-cli` binary |
+| `KIRO_API_KEY` | API key for Kiro headless mode |
+| `OLLAMA_HOST` | Ollama API base URL |
+| `OPENAI_BASE_URL` | OpenAI-compatible API base (optional) |
+| `ANTHROPIC_API_KEY` | Anthropic API key |
+| `OPENAI_API_KEY` | OpenAI API key |
 
 ## Quick start
 
@@ -49,13 +79,14 @@ python memcon.py --history
 ## CLI reference
 
 ```text
-memcon [-h] [--model MODEL] [--show-context] [--history] [--scan] [--version] [prompt_or_file]
+memcon [-h] [--provider PROVIDER] [--model MODEL] [--show-context] [--history] [--scan] [--version] [prompt_or_file]
 ```
 
 | Flag | Description |
 |------|-------------|
 | `prompt_or_file` | Prompt text, or a file path whose contents become the prompt |
-| `-m, --model` | Ollama model name (default: `llama3`) |
+| `-p, --provider` | LLM backend: `ollama`, `anthropic`, `openai`, `kiro` |
+| `-m, --model` | Model name (default from provider section in `config.toml`) |
 | `-s, --show-context` | Print the assembled prompt and exit |
 | `-hi, --history` | Show the last 10 session entries |
 | `-sc, --scan` | Scan workspace files (up to 3 directory levels) |
@@ -65,8 +96,11 @@ With no positional argument, memcon reads a multiline prompt from stdin until `C
 
 ### Model token budgets
 
+Configured in `config.toml` under `[[budgets.rules]]`:
+
 | Model pattern | Max tokens |
 |---------------|------------|
+| `claude-*`, `gpt-4*`, `kiro` | 128,000 |
 | `*70b*` | 16,000 |
 | `*32b*`, `*14b*` | 8,000 |
 | `*8b*`, `*llama3*`, `*phi3*` | 4,000 |
@@ -76,11 +110,24 @@ With no positional argument, memcon reads a multiline prompt from stdin until `C
 
 ### Application config (`config.toml`)
 
-Runtime constants and defaults live in `config.toml` at the project root. Override paths:
+Runtime constants and defaults live in `config.toml` at the project root. Pick a default backend:
+
+```toml
+[provider]
+use_ollama = true    # local Ollama
+use_paid = false     # Anthropic or OpenAI
+use_kiro = false     # Kiro CLI
+paid_provider = "anthropic"  # when use_paid = true
+```
+
+Override paths:
 
 | Variable | Effect |
 |----------|--------|
+| `MEMCON_PROVIDER` | Active LLM backend |
 | `OLLAMA_HOST` | Ollama API base URL |
+| `OPENAI_BASE_URL` | OpenAI API base URL |
+| `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` | Cloud provider credentials |
 | `MEMCON_CONFIG_DIR` | User config directory (default: `~/.config/memcon`) |
 | `MEMCON_CONFIG_FILE` | Path to an alternate `config.toml` |
 
@@ -116,13 +163,16 @@ Scanned file types: `.py`, `.js`, `.ts`, `.jsx`, `.tsx`, `.go`, `.rs`, `.html`, 
 
 ## Development
 
-Dependencies are managed through devbox (Python 3.12, pytest, pyinstaller, gnupg, podman):
+Dependencies are managed through devbox (Python 3.12, pytest, pyinstaller, gnupg, podman, gnumake, zip, kiro-cli):
 
 ```bash
-make help             # list available targets
-make shell            # enter devbox environment
-make test             # run pytest suite
-make build            # run build pipeline (tests + pyinstaller + release archives)
+make help                              # list available targets
+make shell                             # enter devbox environment
+make test                              # run pytest suite
+make build                             # run build pipeline
+make run ARGS='"Explain this" --scan'  # run with default provider
+make run-kiro ARGS='"Refactor auth" --scan'
+make show-context ARGS='"prompt" --scan'  # preview without API call
 ```
 
 Or use devbox directly:
@@ -157,6 +207,7 @@ releases/
 memcon/
 ├── config.toml        # application constants and defaults
 ├── memcon.py          # CLI application
+├── providers/         # ollama, anthropic, openai, kiro clients
 ├── test_memcon.py     # pytest suite
 ├── Makefile           # common dev/build targets
 ├── build.sh           # build and release pipeline

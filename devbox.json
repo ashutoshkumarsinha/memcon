@@ -6,7 +6,10 @@
     "python312Packages.pytest@latest",
     "python312Packages.pytest-mock@latest",
     "python312Packages.pyinstaller@latest",
-    "podman@latest"
+    "podman@latest",
+    "gnumake@latest",
+    "kiro-cli@latest",
+    "zip@latest"
   ],
   "shell": {
     "scripts": {
@@ -15,6 +18,9 @@
       ],
       "build": [
         "./build.sh"
+      ],
+      "show-context": [
+        "python memcon.py --show-context"
       ]
     }
   }

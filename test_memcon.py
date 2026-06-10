@@ -104,10 +104,133 @@ def test_config_loads_from_toml():
     """Ensures config.toml is parsed and exposes expected defaults."""
     cfg = memcon.load_config(memcon._bundle_dir() / "config.toml")
     assert cfg.version == "1.0"
+    assert cfg.provider_name == "ollama"
     assert cfg.default_model == "llama3"
-    assert cfg.ollama_host == "http://localhost:11434"
+    assert cfg.provider.base_url == "http://localhost:11434"
     assert cfg.default_budget_tokens == 4000
     assert cfg.scan_max_depth == 3
+
+
+def _provider_config(tmp_path: Path, **overrides: bool | str) -> Path:
+    text = (memcon._bundle_dir() / "config.toml").read_text()
+    for key, value in overrides.items():
+        if isinstance(value, bool):
+            rendered = "true" if value else "false"
+            text = text.replace(f"{key} = true", f"{key} = {rendered}")
+            text = text.replace(f"{key} = false", f"{key} = {rendered}")
+        else:
+            text = text.replace(f'{key} = "anthropic"', f'{key} = "{value}"')
+            text = text.replace(f'{key} = "openai"', f'{key} = "{value}"')
+    config = tmp_path / "config.toml"
+    config.write_text(text)
+    return config
+
+
+def test_provider_flags_paid_anthropic(tmp_path):
+    """Ensures use_paid + paid_provider selects Anthropic."""
+    cfg = memcon.load_config(
+        _provider_config(tmp_path, use_ollama=False, use_paid=True)
+    )
+    assert cfg.provider_name == "anthropic"
+    assert cfg.default_model == "claude-sonnet-4-20250514"
+
+
+def test_provider_flags_kiro(tmp_path):
+    """Ensures use_kiro selects the Kiro CLI backend."""
+    cfg = memcon.load_config(
+        _provider_config(tmp_path, use_ollama=False, use_kiro=True)
+    )
+    assert cfg.provider_name == "kiro"
+    assert cfg.provider.cli_path == "kiro-cli"
+
+
+def test_provider_flags_reject_multiple_enabled(tmp_path):
+    """Ensures only one provider flag may be enabled."""
+    with pytest.raises(ValueError, match="Multiple providers enabled"):
+        memcon.load_config(
+            _provider_config(tmp_path, use_ollama=True, use_kiro=True)
+        )
+
+
+def test_provider_legacy_name_fallback(tmp_path):
+    """Falls back to [provider].name when all use_* flags are false."""
+    config = tmp_path / "config.toml"
+    config.write_text(
+        (memcon._bundle_dir() / "config.toml").read_text().replace(
+            "use_ollama = true",
+            "use_ollama = false",
+        ).replace('name = "ollama"', 'name = "openai"')
+    )
+    cfg = memcon.load_config(config)
+    assert cfg.provider_name == "openai"
+
+
+def test_provider_config_anthropic():
+    """Ensures Anthropic provider settings load from config.toml."""
+    cfg = memcon.load_config(
+        memcon._bundle_dir() / "config.toml",
+        provider_name="anthropic",
+    )
+    assert cfg.provider_name == "anthropic"
+    assert cfg.provider.api_key_env == "ANTHROPIC_API_KEY"
+    assert cfg.default_model == "claude-sonnet-4-20250514"
+    assert cfg.provider.endpoint == "/v1/messages"
+
+
+def test_provider_config_kiro():
+    """Ensures Kiro CLI provider settings load from config.toml."""
+    cfg = memcon.load_config(
+        memcon._bundle_dir() / "config.toml",
+        provider_name="kiro",
+    )
+    assert cfg.provider_name == "kiro"
+    assert cfg.provider.mode == "acp"
+    assert cfg.provider.cli_path == "kiro-cli"
+    assert cfg.provider.api_key_env == "KIRO_API_KEY"
+    assert cfg.provider.auto_approve_tools is True
+
+
+def test_kiro_prompt_formatting():
+    """Ensures memcon messages are flattened for kiro-cli ACP prompts."""
+    from providers.kiro import _format_prompt
+
+    prompt = _format_prompt(
+        "You are helpful.",
+        [
+            {"role": "user", "content": "Workspace files:\ncode"},
+            {"role": "user", "content": "Refactor auth"},
+        ],
+    )
+    assert "# System instructions" in prompt
+    assert "Refactor auth" in prompt
+    assert "Workspace files" in prompt
+
+
+def test_provider_config_openai():
+    """Ensures OpenAI provider settings load from config.toml."""
+    cfg = memcon.load_config(
+        memcon._bundle_dir() / "config.toml",
+        provider_name="openai",
+    )
+    assert cfg.provider_name == "openai"
+    assert cfg.provider.api_key_env == "OPENAI_API_KEY"
+    assert cfg.default_model == "gpt-4o"
+
+
+def test_split_messages_extracts_system_prompt():
+    """Ensures system content is split from conversation messages."""
+    from providers.messages import split_messages
+
+    system, conversation = split_messages(
+        [
+            {"role": "system", "content": "You are helpful."},
+            {"role": "user", "content": "Workspace files:\ncode"},
+            {"role": "user", "content": "Do the thing"},
+        ]
+    )
+    assert system == "You are helpful."
+    assert len(conversation) == 2
+    assert conversation[-1]["content"] == "Do the thing"
 
 
 def test_dynamic_budget_mapping():
