@@ -104,12 +104,21 @@ Scanned file types: `.py`, `.js`, `.ts`, `.jsx`, `.tsx`, `.go`, `.rs`, `.html`, 
 
 ## Development
 
-Dependencies are managed through devbox (Python 3.12, pytest, pyinstaller, gnupg):
+Dependencies are managed through devbox (Python 3.12, pytest, pyinstaller, gnupg, podman):
 
 ```bash
-devbox shell          # enter environment
-devbox run test       # run pytest suite
-devbox run build      # run build pipeline (tests + pyinstaller + release archives)
+make help             # list available targets
+make shell            # enter devbox environment
+make test             # run pytest suite
+make build            # run build pipeline (tests + pyinstaller + release archives)
+```
+
+Or use devbox directly:
+
+```bash
+devbox shell
+devbox run test
+devbox run build
 ```
 
 Or run tests directly:
@@ -125,7 +134,7 @@ pytest -v test_memcon.py
 ```text
 releases/
 ├── memcon-v1.0-host.tar.gz
-├── memcon-v1.0-win64.zip      # requires Docker
+├── memcon-v1.0-win64.zip      # requires Podman
 ├── SHASUMS256.txt
 └── SHASUMS256.txt.sig         # requires GPG key
 ```
@@ -136,6 +145,7 @@ releases/
 memcon/
 ├── memcon.py          # CLI application
 ├── test_memcon.py     # pytest suite
+├── Makefile           # common dev/build targets
 ├── build.sh           # build and release pipeline
 ├── devbox.json        # dev environment
 ├── requirements.txt   # dependency reference (managed via devbox)

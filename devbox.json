@@ -5,7 +5,8 @@
     "gnupg@latest",
     "python312Packages.pytest@latest",
     "python312Packages.pytest-mock@latest",
-    "python312Packages.pyinstaller@latest"
+    "python312Packages.pyinstaller@latest",
+    "podman@latest"
   ],
   "shell": {
     "scripts": {

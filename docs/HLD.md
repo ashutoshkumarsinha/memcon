@@ -436,7 +436,7 @@ Design choice: fail loud on operator errors (empty prompt, budget); degrade grac
 | Tokenization | Model-specific tokenizer instead of heuristic |
 | Integrations | IDE plugin, shell completion |
 | Config | Schema validation for `global.json` |
-| Platforms | Native Windows build without Docker |
+| Platforms | Native Windows build without Podman |
 | Observability | Structured logging, metrics export |
 
 These are not planned for v1.0 and are documented for architectural continuity only.

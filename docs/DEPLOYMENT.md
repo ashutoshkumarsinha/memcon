@@ -24,7 +24,7 @@ MemCon ships as a single-file native binary produced by PyInstaller. The build p
 
 1. Runs the pytest suite as a pre-flight gate
 2. Compiles a host binary (Linux/macOS) via PyInstaller
-3. Optionally cross-compiles a Windows binary via Docker
+3. Optionally cross-compiles a Windows binary via Podman
 4. Archives artifacts into `releases/`
 5. Generates a SHA-256 manifest and optional GPG signature
 
@@ -48,7 +48,7 @@ releases/
 | Python 3.12 | Source runtime (provided by devbox) |
 | pytest | Pre-flight test gate |
 | PyInstaller | Binary compilation |
-| Docker (optional) | Windows cross-compile via `cdrx/pyinstaller-windows` |
+| Podman (optional) | Windows cross-compile via `cdrx/pyinstaller-windows` |
 | GnuPG (optional) | Manifest signing |
 
 ### Target machine (end user)
@@ -76,7 +76,7 @@ This invokes `build.sh`, which:
 1. Runs `pytest -v test_memcon.py` — build halts on failure
 2. Produces `dist/memcon` (native host binary)
 3. Archives to `releases/memcon-v1.0-host.tar.gz`
-4. Cross-compiles Windows binary if Docker is available
+4. Cross-compiles Windows binary if Podman is available
 5. Writes `releases/SHASUMS256.txt`
 6. Signs manifest if GPG is configured
 7. Sends a desktop notification on macOS/Linux
@@ -92,10 +92,10 @@ tar -czf releases/memcon-v1.0-host.tar.gz -C dist memcon
 
 ### Windows cross-compile
 
-Requires Docker:
+Requires Podman:
 
 ```bash
-docker run --rm -v "$(pwd):/src" cdrx/pyinstaller-windows \
+podman run --rm -v "$(pwd):/src" cdrx/pyinstaller-windows \
   "pyinstaller --onefile --name memcon /src/memcon.py"
 ```
 
@@ -255,7 +255,7 @@ User config at `~/.config/memcon/` is preserved across upgrades.
 | `Ollama request failed` | Ollama not running | Start Ollama; verify `curl $OLLAMA_HOST/api/tags` |
 | `Baseline prompt exceeds model budget` | Prompt too large for model | Shorten input or use a larger model (`-m`) |
 | Build fails at pytest | Code regression | Fix failing tests before releasing |
-| Windows binary missing | Docker unavailable | Install Docker or distribute host-only build |
+| Windows binary missing | Podman unavailable | Install Podman or distribute host-only build |
 | GPG sign skipped | No key configured | Run `gpg --gen-key` or skip signing for internal builds |
 | Permission denied on binary | Missing execute bit | `chmod +x memcon` |
 

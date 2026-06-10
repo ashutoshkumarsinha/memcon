@@ -160,7 +160,7 @@ See [Section 14](#14-out-of-scope).
 | NFR-2 | Single-file binary distribution via PyInstaller |
 | NFR-3 | Build pipeline must pass pytest before compilation |
 | NFR-4 | Release artifacts include SHA-256 manifest |
-| NFR-5 | Cross-platform support: macOS, Linux (native), Windows (Docker cross-compile) |
+| NFR-5 | Cross-platform support: macOS, Linux (native), Windows (Podman cross-compile) |
 | NFR-6 | Ollama request timeout: 600 seconds |
 
 ---
@@ -324,7 +324,7 @@ Final line has `"done": true`.
 1. Run `pytest -v test_memcon.py` — halt on failure
 2. `pyinstaller --onefile --name memcon memcon.py`
 3. Archive native binary to `releases/memcon-v1.0-host.tar.gz`
-4. Cross-compile Windows binary via Docker (`cdrx/pyinstaller-windows`) if available
+4. Cross-compile Windows binary via Podman (`cdrx/pyinstaller-windows`) if available
 5. Generate `releases/SHASUMS256.txt` (SHA-256 per archive)
 6. GPG-sign manifest if `gpg` available
 7. Desktop notification on completion

@@ -21,15 +21,15 @@ pyinstaller --onefile --name memcon memcon.py
 echo "📦 Archiving host release..."
 tar -czf "${RELEASE_DIR}/${HOST_ARCHIVE}" -C dist memcon
 
-if command -v docker >/dev/null 2>&1; then
-    echo "📦 Building Windows binary via Docker..."
-    docker run --rm -v "$(pwd):/src" cdrx/pyinstaller-windows \
+if command -v podman >/dev/null 2>&1; then
+    echo "📦 Building Windows binary via Podman..."
+    podman run --rm -v "$(pwd):/src" cdrx/pyinstaller-windows \
         "pyinstaller --onefile --name memcon /src/memcon.py" || true
     if [[ -f dist/memcon.exe ]]; then
         (cd dist && zip -q "../${RELEASE_DIR}/${WIN_ARCHIVE}" memcon.exe)
     fi
 else
-    echo "⚠️  Docker not found; skipping Windows cross-compile."
+    echo "⚠️  Podman not found; skipping Windows cross-compile."
 fi
 
 echo "🔐 Generating SHA-256 manifest..."
