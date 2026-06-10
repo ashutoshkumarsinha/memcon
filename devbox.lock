@@ -1,0 +1,374 @@
+{
+  "lockfile_version": "1",
+  "packages": {
+    "github:NixOS/nixpkgs/nixpkgs-unstable": {
+      "last_modified": "2026-06-08T15:01:26Z",
+      "resolved": "github:NixOS/nixpkgs/8c3cede7ddc26bd659d2d383b5610efbd2c7a16e?lastModified=1780930886&narHash=sha256-rppURzHviaQN131F%2BnLiLdGfcb0uCd9gGP0E5%2Biw9MI%3D"
+    },
+    "gnupg@latest": {
+      "last_modified": "2026-05-27T10:28:13Z",
+      "resolved": "github:NixOS/nixpkgs/4100e830e085863741bc69b156ec4ccd53ab5be0#gnupg",
+      "source": "devbox-search",
+      "version": "2.4.9",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/cgh6iwzz5jgx9z5whka4vgj210i6npc6-gnupg-2.4.9",
+              "default": true
+            },
+            {
+              "name": "man",
+              "path": "/nix/store/378ps6wb53l7snnqx8vdvzg29vz03yqk-gnupg-2.4.9-man",
+              "default": true
+            },
+            {
+              "name": "doc",
+              "path": "/nix/store/xhxk663jyiagjvw5q6pfqbcj7v957r05-gnupg-2.4.9-doc"
+            },
+            {
+              "name": "info",
+              "path": "/nix/store/adgxsr0mfyc9hmc9h5kzk4wnjjvrfw9n-gnupg-2.4.9-info"
+            }
+          ],
+          "store_path": "/nix/store/cgh6iwzz5jgx9z5whka4vgj210i6npc6-gnupg-2.4.9"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/ka4i8zz5ni3rzqnzcxbfvwr95fk8pn6q-gnupg-2.4.9",
+              "default": true
+            },
+            {
+              "name": "man",
+              "path": "/nix/store/s4f39zw16ycmxd3ch0mgbbsz0dfrrm0g-gnupg-2.4.9-man",
+              "default": true
+            },
+            {
+              "name": "doc",
+              "path": "/nix/store/cpg8xyzhf2zk8qc9n5s8j5rv41xi0phs-gnupg-2.4.9-doc"
+            },
+            {
+              "name": "info",
+              "path": "/nix/store/a97p4fpbjx5jflyxhq0l3smajw14ma98-gnupg-2.4.9-info"
+            }
+          ],
+          "store_path": "/nix/store/ka4i8zz5ni3rzqnzcxbfvwr95fk8pn6q-gnupg-2.4.9"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/gkrz15qn898zz74nzgki4ycnhihf9vnp-gnupg-2.4.9",
+              "default": true
+            },
+            {
+              "name": "man",
+              "path": "/nix/store/b7ivld6yz2yhc86lcgazq9235kwz13im-gnupg-2.4.9-man",
+              "default": true
+            },
+            {
+              "name": "doc",
+              "path": "/nix/store/px66gazyvdjs4dz70502yx2i5167nci0-gnupg-2.4.9-doc"
+            },
+            {
+              "name": "info",
+              "path": "/nix/store/jyx45sbh2gsbh9ydqcmgckb2rv7rvf9f-gnupg-2.4.9-info"
+            }
+          ],
+          "store_path": "/nix/store/gkrz15qn898zz74nzgki4ycnhihf9vnp-gnupg-2.4.9"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/wx7vk8babxkgy813r70yc67vcwnmagbx-gnupg-2.4.9",
+              "default": true
+            },
+            {
+              "name": "man",
+              "path": "/nix/store/mprsyk9jpnrw0z75p3wa6j1ybqczb5q2-gnupg-2.4.9-man",
+              "default": true
+            },
+            {
+              "name": "doc",
+              "path": "/nix/store/whpx4dzq1g7n16i63bi45lb4vry6p48d-gnupg-2.4.9-doc"
+            },
+            {
+              "name": "info",
+              "path": "/nix/store/6jz46fyzkd7qwcrh356l6q2hf893y6h6-gnupg-2.4.9-info"
+            }
+          ],
+          "store_path": "/nix/store/wx7vk8babxkgy813r70yc67vcwnmagbx-gnupg-2.4.9"
+        }
+      }
+    },
+    "python312Packages.pyinstaller@latest": {
+      "last_modified": "2025-12-09T08:49:39Z",
+      "resolved": "github:NixOS/nixpkgs/677fbe97984e7af3175b6c121f3c39ee5c8d62c9#python312Packages.pyinstaller",
+      "source": "devbox-search",
+      "version": "6.15.0",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/qqhi9y671zf7shla9zhg736dilznlfvd-python3.12-pyinstaller-6.15.0",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/gkh2yj20jkkqbzidpy3ajlhxgzyzkfjv-python3.12-pyinstaller-6.15.0-dist"
+            }
+          ],
+          "store_path": "/nix/store/qqhi9y671zf7shla9zhg736dilznlfvd-python3.12-pyinstaller-6.15.0"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/7zdcmnj9c5yfiwj9vddlck9s2104rlji-python3.12-pyinstaller-6.15.0",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/jhf9r6irisaqsdn2l10r3ksf47sxwxmv-python3.12-pyinstaller-6.15.0-dist"
+            }
+          ],
+          "store_path": "/nix/store/7zdcmnj9c5yfiwj9vddlck9s2104rlji-python3.12-pyinstaller-6.15.0"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/zd9z87yypa8qk35sjk2y1r1qndxnf3rz-python3.12-pyinstaller-6.15.0",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/n3b3lf61i6rn931sx8icvsqxm4p4d0p2-python3.12-pyinstaller-6.15.0-dist"
+            }
+          ],
+          "store_path": "/nix/store/zd9z87yypa8qk35sjk2y1r1qndxnf3rz-python3.12-pyinstaller-6.15.0"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/kg0wnqyd2a4xzr42l7rmd860zgw8m9kl-python3.12-pyinstaller-6.15.0",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/j6m00m5aq9785idsvndv45l1c5g1jxik-python3.12-pyinstaller-6.15.0-dist"
+            }
+          ],
+          "store_path": "/nix/store/kg0wnqyd2a4xzr42l7rmd860zgw8m9kl-python3.12-pyinstaller-6.15.0"
+        }
+      }
+    },
+    "python312Packages.pytest-mock@latest": {
+      "last_modified": "2025-11-23T21:50:36Z",
+      "resolved": "github:NixOS/nixpkgs/ee09932cedcef15aaf476f9343d1dea2cb77e261#python312Packages.pytest-mock",
+      "source": "devbox-search",
+      "version": "3.15.1",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/a2xb9g6injpbnw20xnk7g24pkc1046v0-python3.12-pytest-mock-3.15.1",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/dbfkp2lqyq0y8iv2c8m5qlvd0l796p7x-python3.12-pytest-mock-3.15.1-dist"
+            }
+          ],
+          "store_path": "/nix/store/a2xb9g6injpbnw20xnk7g24pkc1046v0-python3.12-pytest-mock-3.15.1"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/jb5nz6m65ili2jla19kwylxg0484z2z2-python3.12-pytest-mock-3.15.1",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/5mk2l7k433zwcqdlmpm0xipy55sw71qz-python3.12-pytest-mock-3.15.1-dist"
+            }
+          ],
+          "store_path": "/nix/store/jb5nz6m65ili2jla19kwylxg0484z2z2-python3.12-pytest-mock-3.15.1"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/zl9zm0j72qkyiacirgrhyyq2f1bk9ppg-python3.12-pytest-mock-3.15.1",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/hj9q4ykqbv0ziygwjcaxi0vprp0q844j-python3.12-pytest-mock-3.15.1-dist"
+            }
+          ],
+          "store_path": "/nix/store/zl9zm0j72qkyiacirgrhyyq2f1bk9ppg-python3.12-pytest-mock-3.15.1"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/zpvzcn15ppm17cz2cj0i0lrjz0dpj1v5-python3.12-pytest-mock-3.15.1",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/71ysvf1288dxqha67d3hzllzfnz077cf-python3.12-pytest-mock-3.15.1-dist"
+            }
+          ],
+          "store_path": "/nix/store/zpvzcn15ppm17cz2cj0i0lrjz0dpj1v5-python3.12-pytest-mock-3.15.1"
+        }
+      }
+    },
+    "python312Packages.pytest@latest": {
+      "last_modified": "2025-12-29T16:45:58Z",
+      "resolved": "github:NixOS/nixpkgs/346dd96ad74dc4457a9db9de4f4f57dab2e5731d#python312Packages.pytest",
+      "source": "devbox-search",
+      "version": "8.4.2",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/bdghf5p7l2mnv7wx6l6mz5x65mla7gvl-python3.12-pytest-8.4.2",
+              "default": true
+            },
+            {
+              "name": "testout",
+              "path": "/nix/store/577r4ayhppxcqa9qcyigmsb07yrmp71l-python3.12-pytest-8.4.2-testout"
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/y4di7b7hxs3w1cl6yirw22pgli91lbgf-python3.12-pytest-8.4.2-dist"
+            }
+          ],
+          "store_path": "/nix/store/bdghf5p7l2mnv7wx6l6mz5x65mla7gvl-python3.12-pytest-8.4.2"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/qrali8ykpzbqfngwljmh6a14jdjpmb9n-python3.12-pytest-8.4.2",
+              "default": true
+            },
+            {
+              "name": "testout",
+              "path": "/nix/store/0396d2cfv2fasar9pfvwlhw92aybfl9n-python3.12-pytest-8.4.2-testout"
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/6xn417h7pk4dfapdwi9qwmifpl9qxbks-python3.12-pytest-8.4.2-dist"
+            }
+          ],
+          "store_path": "/nix/store/qrali8ykpzbqfngwljmh6a14jdjpmb9n-python3.12-pytest-8.4.2"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/10qbm884hnign19j4zfaxwiyw1pf16kj-python3.12-pytest-8.4.2",
+              "default": true
+            },
+            {
+              "name": "testout",
+              "path": "/nix/store/chbk60s103b7sniwk8r63qph39ss6s9b-python3.12-pytest-8.4.2-testout"
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/fcb4z5rxn6fvcx08xz3cajzc8jz5b003-python3.12-pytest-8.4.2-dist"
+            }
+          ],
+          "store_path": "/nix/store/10qbm884hnign19j4zfaxwiyw1pf16kj-python3.12-pytest-8.4.2"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/psdyxmfqfgci9zg0jg2wd93dph86dmz8-python3.12-pytest-8.4.2",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/16qx7v4mn09i0k549v86032hzj5r8nl8-python3.12-pytest-8.4.2-dist"
+            },
+            {
+              "name": "testout",
+              "path": "/nix/store/cdqcj7rc4135zvfr2fns5b0nlrgbx6zv-python3.12-pytest-8.4.2-testout"
+            }
+          ],
+          "store_path": "/nix/store/psdyxmfqfgci9zg0jg2wd93dph86dmz8-python3.12-pytest-8.4.2"
+        }
+      }
+    },
+    "python@3.12": {
+      "last_modified": "2026-05-21T08:15:18Z",
+      "plugin_version": "0.0.4",
+      "resolved": "github:NixOS/nixpkgs/4a29d733e8a7d5b824c3d8c958a946a9867b3eb2#python312",
+      "source": "devbox-search",
+      "version": "3.12.13",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/p1b85dd3syy1yx8q039m1c6v2x2l4w0a-python3-3.12.13",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/p1b85dd3syy1yx8q039m1c6v2x2l4w0a-python3-3.12.13"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/hvmbr5s05b0kzalrdvk53k1nvms9fws7-python3-3.12.13",
+              "default": true
+            },
+            {
+              "name": "debug",
+              "path": "/nix/store/59b6ynipns38i2d974mwpvkzgyldhw0y-python3-3.12.13-debug"
+            }
+          ],
+          "store_path": "/nix/store/hvmbr5s05b0kzalrdvk53k1nvms9fws7-python3-3.12.13"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/zsi2pspagafyx1mi64g6mbf2aj2dxmci-python3-3.12.13",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/zsi2pspagafyx1mi64g6mbf2aj2dxmci-python3-3.12.13"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/lpgczl8hqnjlkicsphcylqfgds7dqc13-python3-3.12.13",
+              "default": true
+            },
+            {
+              "name": "debug",
+              "path": "/nix/store/3vpaljklkxfb4kpzigwci6ls78a2wbw1-python3-3.12.13-debug"
+            }
+          ],
+          "store_path": "/nix/store/lpgczl8hqnjlkicsphcylqfgds7dqc13-python3-3.12.13"
+        }
+      }
+    }
+  }
+}

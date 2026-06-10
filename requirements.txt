@@ -1,0 +1,4 @@
+# Managed via devbox (python312Packages.*). Listed here for reference.
+pytest>=8.0
+pytest-mock>=3.12
+pyinstaller>=6.0

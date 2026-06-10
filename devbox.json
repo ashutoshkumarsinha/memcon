@@ -1,0 +1,20 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.17.3/.schema/devbox.schema.json",
+  "packages": [
+    "python@3.12",
+    "gnupg@latest",
+    "python312Packages.pytest@latest",
+    "python312Packages.pytest-mock@latest",
+    "python312Packages.pyinstaller@latest"
+  ],
+  "shell": {
+    "scripts": {
+      "test": [
+        "pytest -v test_memcon.py"
+      ],
+      "build": [
+        "./build.sh"
+      ]
+    }
+  }
+}
